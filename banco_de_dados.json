@@ -1,0 +1,938 @@
+{
+    "oradores": [
+        {
+            "nome": "Renan Lima",
+            "temas_ids": [
+                4,
+                22,
+                27,
+                32,
+                36,
+                40
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Wesley Santos",
+            "temas_ids": [
+                26,
+                49,
+                56,
+                68,
+                191
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Nelson Correia",
+            "temas_ids": [
+                3,
+                4,
+                8,
+                10,
+                13,
+                26,
+                40,
+                64,
+                66,
+                67,
+                68,
+                69,
+                76,
+                85,
+                109,
+                119,
+                149,
+                156,
+                157,
+                160,
+                161,
+                181
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Henrique Mendes",
+            "temas_ids": [
+                1,
+                11,
+                26,
+                48,
+                168,
+                169
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Ricardo Rosa",
+            "temas_ids": [
+                79,
+                110,
+                113,
+                121,
+                142,
+                158,
+                160,
+                178,
+                180,
+                190
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Lucas Franco",
+            "temas_ids": [
+                54,
+                62,
+                71,
+                153
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Eric Amaral",
+            "temas_ids": [
+                7,
+                14,
+                116,
+                175,
+                177
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Felipe Basílio",
+            "temas_ids": [
+                41,
+                50,
+                68
+            ],
+            "cargo": "Ancião"
+        },
+        {
+            "nome": "Carlos Aoad",
+            "temas_ids": [
+                24,
+                65,
+                103,
+                105,
+                187
+            ],
+            "cargo": "Ancião"
+        }
+    ],
+    "agenda": [
+        {
+            "id": "20251229222916",
+            "data": "2026-01-03",
+            "orador": "Renan Lima",
+            "cargo": "Ancião",
+            "tema_numero": 27,
+            "tema_titulo": "Como construir um casamento feliz"
+        },
+        {
+            "id": "20251229222923",
+            "data": "2026-01-10",
+            "orador": "Wesley Santos",
+            "cargo": "Ancião",
+            "tema_numero": 68,
+            "tema_titulo": "‘Continue a perdoar uns aos outros liberalmente’"
+        },
+        {
+            "id": "20251229222934",
+            "data": "2026-01-17",
+            "orador": "Felipe Basílio",
+            "cargo": "Ancião",
+            "tema_numero": 50,
+            "tema_titulo": "Como sempre tomar as melhores decisões"
+        },
+        {
+            "id": "20251229222941",
+            "data": "2026-01-31",
+            "orador": "Carlos Aoad",
+            "cargo": "Ancião",
+            "tema_numero": 187,
+            "tema_titulo": "Por que um Deus amoroso permite a maldade?"
+        }
+    ],
+    "temas": [
+        {
+            "numero": 1,
+            "titulo": "Você conhece bem a Deus?"
+        },
+        {
+            "numero": 2,
+            "titulo": "Você vai sobreviver aos últimos dias?"
+        },
+        {
+            "numero": 3,
+            "titulo": "Você está avançando com a organização unida de Jeová?"
+        },
+        {
+            "numero": 4,
+            "titulo": "Que provas temos de que Deus existe?"
+        },
+        {
+            "numero": 5,
+            "titulo": "Você pode ter uma família feliz!"
+        },
+        {
+            "numero": 6,
+            "titulo": "O dilúvio dos dias de Noé e você"
+        },
+        {
+            "numero": 7,
+            "titulo": "Imite a misericórdia de Jeová"
+        },
+        {
+            "numero": 8,
+            "titulo": "Viva para fazer a vontade de Deus"
+        },
+        {
+            "numero": 9,
+            "titulo": "Escute e faça o que a Bíblia diz"
+        },
+        {
+            "numero": 10,
+            "titulo": "Seja honesto em tudo"
+        },
+        {
+            "numero": 11,
+            "titulo": "Imite a Jesus e não faça parte do mundo"
+        },
+        {
+            "numero": 12,
+            "titulo": "Deus quer que você respeite quem tem autoridade"
+        },
+        {
+            "numero": 13,
+            "titulo": "Qual o ponto de vista de Deus sobre o sexo e o casamento?"
+        },
+        {
+            "numero": 14,
+            "titulo": "Um povo puro e limpo honra a Jeová"
+        },
+        {
+            "numero": 15,
+            "titulo": "‘Faça o bem a todos’"
+        },
+        {
+            "numero": 16,
+            "titulo": "Seja cada vez mais amigo de Jeová"
+        },
+        {
+            "numero": 17,
+            "titulo": "Glorifique a Deus com tudo o que você tem"
+        },
+        {
+            "numero": 18,
+            "titulo": "Faça de Jeová a sua fortaleza"
+        },
+        {
+            "numero": 19,
+            "titulo": "Como você pode saber seu futuro?"
+        },
+        {
+            "numero": 20,
+            "titulo": "Chegou o tempo de Deus governar o mundo?"
+        },
+        {
+            "numero": 21,
+            "titulo": "Dê valor ao seu lugar no Reino de Deus"
+        },
+        {
+            "numero": 22,
+            "titulo": "Você está usando bem o que Jeová lhe dá?"
+        },
+        {
+            "numero": 23,
+            "titulo": "A vida tem objetivo"
+        },
+        {
+            "numero": 24,
+            "titulo": "Você encontrou “uma pérola de grande valor”?"
+        },
+        {
+            "numero": 25,
+            "titulo": "Lute contra o espírito do mundo"
+        },
+        {
+            "numero": 26,
+            "titulo": "Você é importante para Deus?"
+        },
+        {
+            "numero": 27,
+            "titulo": "Como construir um casamento feliz"
+        },
+        {
+            "numero": 28,
+            "titulo": "Mostre respeito e amor no seu casamento"
+        },
+        {
+            "numero": 29,
+            "titulo": "As responsabilidades e recompensas de ter filhos"
+        },
+        {
+            "numero": 30,
+            "titulo": "Como melhorar a comunicação na família"
+        },
+        {
+            "numero": 31,
+            "titulo": "Você tem consciência da sua necessidade espiritual?"
+        },
+        {
+            "numero": 32,
+            "titulo": "Como lidar com as ansiedades da vida"
+        },
+        {
+            "numero": 33,
+            "titulo": "Quando vai existir verdadeira justiça?"
+        },
+        {
+            "numero": 34,
+            "titulo": "Você vai ser marcado para sobreviver?"
+        },
+        {
+            "numero": 35,
+            "titulo": "É possível viver para sempre? O que você precisa fazer?"
+        },
+        {
+            "numero": 36,
+            "titulo": "Será que a vida é só isso?"
+        },
+        {
+            "numero": 37,
+            "titulo": "Obedecer a Deus é mesmo a melhor coisa a fazer?"
+        },
+        {
+            "numero": 38,
+            "titulo": "Como você pode sobreviver ao fim do mundo?"
+        },
+        {
+            "numero": 39,
+            "titulo": "Jesus Cristo vence o mundo — Como e quando?"
+        },
+        {
+            "numero": 40,
+            "titulo": "O que vai acontecer em breve?"
+        },
+        {
+            "numero": 41,
+            "titulo": "Fiquem parados e vejam como Jeová os salvará"
+        },
+        {
+            "numero": 42,
+            "titulo": "O amor pode vencer o ódio?"
+        },
+        {
+            "numero": 43,
+            "titulo": "Tudo o que Deus nos pede é para o nosso bem"
+        },
+        {
+            "numero": 44,
+            "titulo": "Como os ensinos de Jesus podem ajudar você?"
+        },
+        {
+            "numero": 45,
+            "titulo": "Siga o caminho da vida"
+        },
+        {
+            "numero": 46,
+            "titulo": "Fortaleça sua confiança em Jeová"
+        },
+        {
+            "numero": 47,
+            "titulo": "(Indisponível)"
+        },
+        {
+            "numero": 48,
+            "titulo": "Seja leal a Deus mesmo quando for testado"
+        },
+        {
+            "numero": 49,
+            "titulo": "Será que um dia a Terra vai ser limpa?"
+        },
+        {
+            "numero": 50,
+            "titulo": "Como sempre tomar as melhores decisões"
+        },
+        {
+            "numero": 51,
+            "titulo": "Será que a verdade da Bíblia está mudando a sua vida?"
+        },
+        {
+            "numero": 52,
+            "titulo": "Quem é o seu Deus?"
+        },
+        {
+            "numero": 53,
+            "titulo": "Você pensa como Deus?"
+        },
+        {
+            "numero": 54,
+            "titulo": "Fortaleça sua fé em Deus e em suas promessas"
+        },
+        {
+            "numero": 55,
+            "titulo": "Você está fazendo um bom nome perante Deus?"
+        },
+        {
+            "numero": 56,
+            "titulo": "Existe um líder em quem você pode confiar?"
+        },
+        {
+            "numero": 57,
+            "titulo": "Como suportar perseguição"
+        },
+        {
+            "numero": 58,
+            "titulo": "Quem são os verdadeiros seguidores de Cristo?"
+        },
+        {
+            "numero": 59,
+            "titulo": "Ceifará o que semear"
+        },
+        {
+            "numero": 60,
+            "titulo": "Você tem um objetivo na vida?"
+        },
+        {
+            "numero": 61,
+            "titulo": "Nas promessas de quem você confia?"
+        },
+        {
+            "numero": 62,
+            "titulo": "Onde encontrar uma esperança real para o futuro?"
+        },
+        {
+            "numero": 63,
+            "titulo": "Tem você espírito evangelizador?"
+        },
+        {
+            "numero": 64,
+            "titulo": "Você ama os prazeres ou a Deus?"
+        },
+        {
+            "numero": 65,
+            "titulo": "Como podemos ser pacíficos num mundo cheio de ódio"
+        },
+        {
+            "numero": 66,
+            "titulo": "Você também vai participar na colheita?"
+        },
+        {
+            "numero": 67,
+            "titulo": "Medite na Bíblia e nas criações de Jeová"
+        },
+        {
+            "numero": 68,
+            "titulo": "‘Continue a perdoar uns aos outros liberalmente’"
+        },
+        {
+            "numero": 69,
+            "titulo": "Por que mostrar amor abnegado?"
+        },
+        {
+            "numero": 70,
+            "titulo": "Por que Deus merece sua confiança?"
+        },
+        {
+            "numero": 71,
+            "titulo": "‘Mantenha-se desperto’ — Por que e como?"
+        },
+        {
+            "numero": 72,
+            "titulo": "O amor identifica os cristãos verdadeiros"
+        },
+        {
+            "numero": 73,
+            "titulo": "Você tem “um coração sábio”?"
+        },
+        {
+            "numero": 74,
+            "titulo": "Os olhos de Jeová estão em todo lugar"
+        },
+        {
+            "numero": 75,
+            "titulo": "Mostre que você apoia o direito de Jeová governar"
+        },
+        {
+            "numero": 76,
+            "titulo": "Princípios bíblicos — Podem nos ajudar a lidar com os problemas atuais?"
+        },
+        {
+            "numero": 77,
+            "titulo": "“Sempre mostrem hospitalidade”"
+        },
+        {
+            "numero": 78,
+            "titulo": "Sirva a Jeová com um coração alegre"
+        },
+        {
+            "numero": 79,
+            "titulo": "Você vai escolher ser amigo de Deus?"
+        },
+        {
+            "numero": 80,
+            "titulo": "Você baseia sua esperança na ciência ou na Bíblia?"
+        },
+        {
+            "numero": 81,
+            "titulo": "Quem está qualificado para fazer discípulos?"
+        },
+        {
+            "numero": 82,
+            "titulo": "(Indisponível)"
+        },
+        {
+            "numero": 83,
+            "titulo": "Tempo de julgamento da religião"
+        },
+        {
+            "numero": 84,
+            "titulo": "Escapará do destino deste mundo?"
+        },
+        {
+            "numero": 85,
+            "titulo": "Boas notícias num mundo violento"
+        },
+        {
+            "numero": 86,
+            "titulo": "Como orar a Deus e ser ouvido por ele?"
+        },
+        {
+            "numero": 87,
+            "titulo": "Qual é a sua relação com Deus?"
+        },
+        {
+            "numero": 88,
+            "titulo": "Por que viver de acordo com os padrões da Bíblia?"
+        },
+        {
+            "numero": 89,
+            "titulo": "Quem tem sede da verdade, venha!"
+        },
+        {
+            "numero": 90,
+            "titulo": "Faça o máximo para alcançar a verdadeira vida!"
+        },
+        {
+            "numero": 91,
+            "titulo": "A presença do Messias e seu domínio"
+        },
+        {
+            "numero": 92,
+            "titulo": "O papel da religião nos assuntos do mundo"
+        },
+        {
+            "numero": 93,
+            "titulo": "Desastres naturais — Quando vão acabar?"
+        },
+        {
+            "numero": 94,
+            "titulo": "A religião verdadeira atende às necessidades da sociedade humana"
+        },
+        {
+            "numero": 95,
+            "titulo": "Não seja enganado pelo ocultismo"
+        },
+        {
+            "numero": 96,
+            "titulo": "O que vai acontecer com as religiões?"
+        },
+        {
+            "numero": 97,
+            "titulo": "Permaneçamos inculpes em meio a uma geração pervertida"
+        },
+        {
+            "numero": 98,
+            "titulo": "“A cena deste mundo está mudando”"
+        },
+        {
+            "numero": 99,
+            "titulo": "Por que você pode confiar na Bíblia"
+        },
+        {
+            "numero": 100,
+            "titulo": "Como fazer amizades fortes e verdadeiras"
+        },
+        {
+            "numero": 101,
+            "titulo": "Jeová é o “Grandioso Criador”"
+        },
+        {
+            "numero": 102,
+            "titulo": "Preste atenção à “palavra profética”"
+        },
+        {
+            "numero": 103,
+            "titulo": "Pode-se encontrar alegria em servir a Deus"
+        },
+        {
+            "numero": 104,
+            "titulo": "Pais, vocês estão construindo com materiais à prova de fogo?"
+        },
+        {
+            "numero": 105,
+            "titulo": "Somos consolados em todas as nossas tribulações"
+        },
+        {
+            "numero": 106,
+            "titulo": "Arruinar a Terra provocará retribuição divina"
+        },
+        {
+            "numero": 107,
+            "titulo": "Você está treinando bem a sua consciência?"
+        },
+        {
+            "numero": 108,
+            "titulo": "Você pode encarar o futuro com confiança!"
+        },
+        {
+            "numero": 109,
+            "titulo": "O Reino de Deus está próximo"
+        },
+        {
+            "numero": 110,
+            "titulo": "Deus vem primeiro na vida familiar bem‑sucedida"
+        },
+        {
+            "numero": 111,
+            "titulo": "É possível que a humidade seja completamente curada?"
+        },
+        {
+            "numero": 112,
+            "titulo": "(Indisponível)"
+        },
+        {
+            "numero": 113,
+            "titulo": "Jovens — Como vocês podem ter uma vida feliz?"
+        },
+        {
+            "numero": 114,
+            "titulo": "Apreço pelas maravilhas da criação de Deus"
+        },
+        {
+            "numero": 115,
+            "titulo": "Como proteger‑nos contra os laços de Satanás"
+        },
+        {
+            "numero": 116,
+            "titulo": "Escolha sabiamente com quem irá associar‑se!"
+        },
+        {
+            "numero": 117,
+            "titulo": "Como vencer o mal com o bem"
+        },
+        {
+            "numero": 118,
+            "titulo": "Olhemos os jovens do ponto de vista de Jeová"
+        },
+        {
+            "numero": 119,
+            "titulo": "Por que é benéfico que os cristãos vivam separados do mundo"
+        },
+        {
+            "numero": 120,
+            "titulo": "Por que se submeter à regência de Deus agora"
+        },
+        {
+            "numero": 121,
+            "titulo": "Uma família mundial que será salva da destruição"
+        },
+        {
+            "numero": 122,
+            "titulo": "Paz global — De onde virá?"
+        },
+        {
+            "numero": 123,
+            "titulo": "Por que os cristãos têm de ser diferentes"
+        },
+        {
+            "numero": 124,
+            "titulo": "Razões para crer que a Bíblia é de autoria divina"
+        },
+        {
+            "numero": 125,
+            "titulo": "Por que a humanidade precisa de resgate"
+        },
+        {
+            "numero": 126,
+            "titulo": "Quem se salvará?"
+        },
+        {
+            "numero": 127,
+            "titulo": "O que acontece quando morremos?"
+        },
+        {
+            "numero": 128,
+            "titulo": "É o inferno um lugar de tormento ardente?"
+        },
+        {
+            "numero": 129,
+            "titulo": "O que a Bíblia diz sobre a Trindade?"
+        },
+        {
+            "numero": 130,
+            "titulo": "A Terra permanecerá para sempre"
+        },
+        {
+            "numero": 131,
+            "titulo": "(Indisponível)"
+        },
+        {
+            "numero": 132,
+            "titulo": "(Indisponível)"
+        },
+        {
+            "numero": 133,
+            "titulo": "Tem importância o que cremos sobre a nossa origem?"
+        },
+        {
+            "numero": 134,
+            "titulo": "Devem os cristãos guardar o sábado?"
+        },
+        {
+            "numero": 135,
+            "titulo": "A santidade da vida e do sangue"
+        },
+        {
+            "numero": 136,
+            "titulo": "Será que Deus aprova o uso de imagens na adoração?"
+        },
+        {
+            "numero": 137,
+            "titulo": "Ocorreram realmente os milagres da Bíblia?"
+        },
+        {
+            "numero": 138,
+            "titulo": "Viva com bom juízo num mundo depravado"
+        },
+        {
+            "numero": 139,
+            "titulo": "Sabedoria divina num mundo científico"
+        },
+        {
+            "numero": 140,
+            "titulo": "Quem é realmente Jesus Cristo?"
+        },
+        {
+            "numero": 141,
+            "titulo": "Quando terão fim os gemidos da criação humana?"
+        },
+        {
+            "numero": 142,
+            "titulo": "Por que refugiar‑se em Jeová"
+        },
+        {
+            "numero": 143,
+            "titulo": "Confie no Deus de todo consolo"
+        },
+        {
+            "numero": 144,
+            "titulo": "Uma congregação leal sob a liderança de Cristo"
+        },
+        {
+            "numero": 145,
+            "titulo": "Quem é semelhante a Jeová, nosso Deus?"
+        },
+        {
+            "numero": 146,
+            "titulo": "Use a educação para louvar a Jeová"
+        },
+        {
+            "numero": 147,
+            "titulo": "Confie no poder salvador de Jeová"
+        },
+        {
+            "numero": 148,
+            "titulo": "Você tem o mesmo conceito de Deus sobre a vida?"
+        },
+        {
+            "numero": 149,
+            "titulo": "O que significa “andar com Deus”?"
+        },
+        {
+            "numero": 150,
+            "titulo": "Este mundo está condenado à destruição?"
+        },
+        {
+            "numero": 151,
+            "titulo": "Jeová é “uma altura protetora” para seu povo"
+        },
+        {
+            "numero": 152,
+            "titulo": "Armagedom — Por que e quando?"
+        },
+        {
+            "numero": 153,
+            "titulo": "Tenha bem em mente o “atemorizante dia”!"
+        },
+        {
+            "numero": 154,
+            "titulo": "O governo humano é pesado na balança"
+        },
+        {
+            "numero": 155,
+            "titulo": "Chegou a hora do julgamento de Babilônia?"
+        },
+        {
+            "numero": 156,
+            "titulo": "O Dia do Juízo — Tempo de temor ou de esperança?"
+        },
+        {
+            "numero": 157,
+            "titulo": "Como os verdadeiros cristãos adornam o ensino divino"
+        },
+        {
+            "numero": 158,
+            "titulo": "Seja corajoso e confie em Jeová"
+        },
+        {
+            "numero": 159,
+            "titulo": "Como encontrar segurança num mundo perigoso"
+        },
+        {
+            "numero": 160,
+            "titulo": "Mantenha a identidade cristã!"
+        },
+        {
+            "numero": 161,
+            "titulo": "Por que Jesus sofreu e morreu?"
+        },
+        {
+            "numero": 162,
+            "titulo": "Seja liberto deste mundo em escuridão"
+        },
+        {
+            "numero": 163,
+            "titulo": "Por que temer o Deus verdadeiro?"
+        },
+        {
+            "numero": 164,
+            "titulo": "Será que Deus ainda está no controle?"
+        },
+        {
+            "numero": 165,
+            "titulo": "Os valores de quem você preza?"
+        },
+        {
+            "numero": 166,
+            "titulo": "Como enfrentar o futuro com fé e coragem"
+        },
+        {
+            "numero": 167,
+            "titulo": "Ajamos sabiamente num mundo insensato"
+        },
+        {
+            "numero": 168,
+            "titulo": "Você pode sentir‑se seguro neste mundo atribulado!"
+        },
+        {
+            "numero": 169,
+            "titulo": "Por que ser orientado pela Bíblia?"
+        },
+        {
+            "numero": 170,
+            "titulo": "Quem está qualificado para governar a humanidade?"
+        },
+        {
+            "numero": 171,
+            "titulo": "Poderá viver em paz agora — E para sempre!"
+        },
+        {
+            "numero": 172,
+            "titulo": "Que reputação você tem perante Deus?"
+        },
+        {
+            "numero": 173,
+            "titulo": "Existe uma religião verdadeira do ponto de vista de Deus?"
+        },
+        {
+            "numero": 174,
+            "titulo": "Quem se qualificará para entrar no novo mundo de Deus?"
+        },
+        {
+            "numero": 175,
+            "titulo": "O que prova que a Bíblia é autêntica?"
+        },
+        {
+            "numero": 176,
+            "titulo": "Quando haverá verdadeira paz e segurança?"
+        },
+        {
+            "numero": 177,
+            "titulo": "Onde encontrar ajuda em tempos de aflição?"
+        },
+        {
+            "numero": 178,
+            "titulo": "Ande no caminho da integridade"
+        },
+        {
+            "numero": 179,
+            "titulo": "Rejeite as fantasias do mundo, empenhe-se pelas realidades do Reino"
+        },
+        {
+            "numero": 180,
+            "titulo": "A ressurreição — Por que essa esperança deve ser real para você"
+        },
+        {
+            "numero": 181,
+            "titulo": "Já é mais tarde do que você imagina?"
+        },
+        {
+            "numero": 182,
+            "titulo": "O que o Reino de Deus está fazendo por nós agora?"
+        },
+        {
+            "numero": 183,
+            "titulo": "Desvie seus olhos do que é fútil"
+        },
+        {
+            "numero": 184,
+            "titulo": "A morte é o fim de tudo?"
+        },
+        {
+            "numero": 185,
+            "titulo": "Será que a verdade influencia sua vida?"
+        },
+        {
+            "numero": 186,
+            "titulo": "Sirva em união com o povo feliz de Deus"
+        },
+        {
+            "numero": 187,
+            "titulo": "Por que um Deus amoroso permite a maldade?"
+        },
+        {
+            "numero": 188,
+            "titulo": "Você confia em Jeová?"
+        },
+        {
+            "numero": 189,
+            "titulo": "Ande com Deus e receba bênçãos para sempre"
+        },
+        {
+            "numero": 190,
+            "titulo": "Como se cumprirá a promessa de perfeita felicidade familiar"
+        },
+        {
+            "numero": 191,
+            "titulo": "Como o amor e a fé vencem o mundo"
+        },
+        {
+            "numero": 192,
+            "titulo": "Você está no caminho para a vida eterna?"
+        },
+        {
+            "numero": 193,
+            "titulo": "Os problemas de hoje logo serão coisa do passado"
+        },
+        {
+            "numero": 194,
+            "titulo": "Como a sabedoria de Deus nos ajuda"
+        }
+    ],
+    "solicitacoes": [],
+    "historico_local": []
+}

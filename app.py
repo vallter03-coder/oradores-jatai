@@ -10,7 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 ENDERECO_SALAO = "R. João Vieira Nunes, 284 - Parque Jataí, Votorantim - SP"
 HORARIO_REUNIAO = "Sábado às 18:30"
 LINK_MAPS = "https://maps.app.goo.gl/aFaKWzix8CeXg5m96"
-NOME_PLANILHA_GOOGLE = "oradores_db" # Nome exato da sua planilha
+NOME_PLANILHA_GOOGLE = "oradores_db" 
 
 # --- TENTATIVA DE FORÇAR PORTUGUÊS ---
 try:
@@ -35,6 +35,17 @@ def conectar_gsheets():
     client = gspread.authorize(creds)
     return client
 
+def normalizar_chaves(lista_de_dicionarios):
+    """
+    Função Auxiliar: Transforma todas as chaves (colunas) para minúsculo e sem espaços.
+    Ex: 'Nome ' vira 'nome', 'CARGO' vira 'cargo'.
+    """
+    lista_limpa = []
+    for item in lista_de_dicionarios:
+        novo_item = {k.strip().lower(): v for k, v in item.items()}
+        lista_limpa.append(novo_item)
+    return lista_limpa
+
 def carregar_dados():
     """Lê todas as abas da planilha e formata para o app"""
     try:
@@ -44,10 +55,16 @@ def carregar_dados():
         # --- 1. Carregar Oradores ---
         ws_oradores = sh.worksheet("oradores")
         raw_oradores = ws_oradores.get_all_records()
+        
+        # APLICANDO A CORREÇÃO AQUI:
+        raw_oradores = normalizar_chaves(raw_oradores)
+        
         oradores_formatados = []
         
         for row in raw_oradores:
+            # Agora acessamos 'temas_ids' com segurança, pois foi normalizado para minúsculo
             ids_str = str(row.get('temas_ids', ''))
+            
             if ids_str and ids_str.strip():
                 try:
                     ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
@@ -57,24 +74,29 @@ def carregar_dados():
                 ids = []
 
             oradores_formatados.append({
-                "nome": row['nome'],
-                "cargo": row['cargo'],
+                "nome": row.get('nome', 'Sem Nome'), # Usa .get para evitar crash se a coluna sumir
+                "cargo": row.get('cargo', 'Outro'),
                 "temas_ids": ids
             })
 
         # --- 2. Carregar Agenda ---
         ws_agenda = sh.worksheet("agenda")
-        agenda = ws_agenda.get_all_records()
+        agenda_raw = ws_agenda.get_all_records()
+        agenda = normalizar_chaves(agenda_raw) # Normaliza aqui também
+
         for item in agenda:
             if 'tema_numero' in item and str(item['tema_numero']).isdigit():
                 item['tema_numero'] = int(item['tema_numero'])
 
         # --- 3. Carregar Temas ---
         ws_temas = sh.worksheet("temas")
-        temas = ws_temas.get_all_records()
+        temas_raw = ws_temas.get_all_records()
+        temas = normalizar_chaves(temas_raw) # Normaliza aqui também
 
         # --- 4. Carregar Solicitações ---
         ws_solic = sh.worksheet("solicitacoes")
+        # As solicitações geralmente salvamos como JSON em uma célula ou colunas especificas, 
+        # mas se estiver usando colunas normais, mantenha assim:
         solicitacoes = ws_solic.get_all_records()
 
         return {
@@ -87,14 +109,16 @@ def carregar_dados():
 
     except Exception as e:
         st.error(f"Erro ao conectar na planilha: {e}")
+        # Retorna estrutura vazia para não quebrar o resto da tela
         return {"oradores": [], "agenda": [], "temas": [], "solicitacoes": [], "historico_local": []}
 
 def salvar_dados(dados):
     try:
         client = conectar_gsheets()
+        # CUIDADO: O código original salvava TUDO na célula A1 da Sheet1 como JSON.
+        # Se sua intenção é manter a planilha legível, essa função precisaria ser reescrita 
+        # para atualizar linha a linha. Vou manter como estava para não quebrar sua lógica atual.
         sheet = client.open(NOME_PLANILHA_GOOGLE).sheet1
-        # OBS: Se você estiver usando abas separadas, o ideal seria atualizar cada aba.
-        # Este método salva um JSON na aba 1 (funciona como backup rápido ou DB simples).
         conteudo_texto = json.dumps(dados, ensure_ascii=False)
         sheet.update_acell('A1', conteudo_texto)
     except Exception as e:

@@ -7,49 +7,43 @@ import time
 import urllib.parse
 
 # ==============================================================================
-# 1. CONFIGURAÇÕES VISUAIS (ESTILO DE CARDS)
+# 1. CONFIGURAÇÕES VISUAIS
 # ==============================================================================
-st.set_page_config(page_title="Sistema de Discursos", page_icon="jx", layout="wide")
+st.set_page_config(page_title="Gestão de Discursos", page_icon="jx", layout="wide")
 
 NOME_PLANILHA = "oradores_db"
+ENDERECO_SALAO = "Rua João Vieira Nunes, Votorantim - SP"
+LINK_MAPS = "https://www.google.com/maps/search/?api=1&query=Rua+Joao+Vieira+Nunes+Votorantim"
 
 st.markdown("""
 <style>
-    /* Fundo e Texto */
     .stApp {background-color: #F4F6F9; color: #333;}
     
-    /* Estilo do CARD do Orador */
+    /* CARD DO ORADOR */
     .orador-card {
         background-color: white;
         padding: 20px;
         border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         border: 1px solid #E0E0E0;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
     }
-    .orador-nome {
-        font-size: 18px;
-        font-weight: bold;
-        color: #2C3E50;
-    }
-    .orador-cargo {
-        color: #7F8C8D;
-        font-size: 14px;
-        margin-bottom: 10px;
-    }
+    .orador-nome { font-size: 18px; font-weight: bold; color: #004E8C; margin-bottom: 5px; }
+    .orador-info { font-size: 14px; color: #666; margin-bottom: 15px; }
     
     /* Botões */
     .stButton button {
         width: 100%;
         border-radius: 5px;
         font-weight: 600;
+        background-color: #004E8C;
+        color: white;
+        border: none;
     }
+    .stButton button:hover { background-color: #003366; color: white; }
     
     /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #FFFFFF;
-        border-right: 1px solid #ddd;
-    }
+    [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #ddd; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,164 +66,137 @@ def carregar_dados():
     client = conectar()
     sh = client.open(NOME_PLANILHA)
 
-    # Abas
-    ws_oradores = sh.worksheet("oradores")
-    ws_agenda = sh.worksheet("agenda")
-    ws_temas = sh.worksheet("temas")
-    ws_solic = sh.worksheet("solicitacoes")
+    # Carrega abas essenciais
+    try: ws_oradores = sh.worksheet("oradores")
+    except: ws_oradores = sh.add_worksheet("oradores", 100, 5)
+    
+    try: ws_agenda = sh.worksheet("agenda")
+    except: ws_agenda = sh.add_worksheet("agenda", 100, 5)
 
-    # DataFrames
+    try: ws_temas = sh.worksheet("temas")
+    except: st.error("Aba 'temas' faltando."); st.stop()
+
     df_oradores = pd.DataFrame(ws_oradores.get_all_records())
-    df_agenda = pd.DataFrame(ws_agenda.get_all_records())
     df_temas = pd.DataFrame(ws_temas.get_all_records())
 
-    # Normalização básica de nomes de colunas (Minúsculo para garantir)
-    df_oradores.columns = [c.lower() for c in df_oradores.columns]
-    df_temas.columns = [c.lower() for c in df_temas.columns]
-    
-    # Garante colunas mínimas para não quebrar se estiver vazio
-    required_oradores = ['nome', 'cargo', 'congregacao', 'cidade', 'temas_ids', 'contato']
-    for col in required_oradores:
-        if col not in df_oradores.columns:
-            df_oradores[col] = "" # Cria vazia se não existir na planilha
+    # Padroniza colunas para minúsculo
+    df_oradores.columns = [c.lower().strip() for c in df_oradores.columns]
+    df_temas.columns = [c.lower().strip() for c in df_temas.columns]
 
-    return ws_agenda, ws_solic, df_oradores, df_agenda, df_temas
+    return ws_agenda, df_oradores, df_temas
 
 # ==============================================================================
-# 3. INTERFACE PRINCIPAL
+# 3. APP
 # ==============================================================================
 def main():
     try:
-        ws_agenda, ws_solic, df_oradores, df_agenda, df_temas = carregar_dados()
+        ws_agenda, df_oradores, df_temas = carregar_dados()
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        st.stop()
+        st.error(f"Erro ao carregar: {e}"); st.stop()
 
-    # --- BARRA LATERAL (FILTROS E LOCAL) ---
-    st.sidebar.header("📍 Localização")
-    
-    # 1. Filtros de Busca
-    meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-    mes_selecionado = st.sidebar.selectbox("Mês Pretendido", meses)
-    
-    cidade_digitada = st.sidebar.text_input("Cidade", placeholder="Ex: Votorantim")
-    congregacao_digitada = st.sidebar.text_input("Congregação", placeholder="Ex: Parque Jataí")
-
-    st.sidebar.markdown("---")
-    
-    # 2. Botão Street View (Dinâmico)
-    if cidade_digitada and congregacao_digitada:
-        query_map = f"Salão do Reino das Testemunhas de Jeová {congregacao_digitada} {cidade_digitada}"
-        link_map = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(query_map)}"
-        
-        st.sidebar.markdown(f"""
-            <a href="{link_map}" target="_blank">
-                <button style="
-                    background-color: #34A853; color: white; width: 100%; 
-                    padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
-                    🗺️ Ver Salão no Mapa
+    # --- SIDEBAR (LOCAL FIXO + FILTROS) ---
+    with st.sidebar:
+        st.header("📍 Nosso Salão")
+        st.write(f"**{ENDERECO_SALAO}**")
+        st.markdown(f"""
+            <a href="{LINK_MAPS}" target="_blank">
+                <button style="background-color: #34A853; color: white; width: 100%; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 20px;">
+                    🗺️ Ver no Google Street View
                 </button>
             </a>
         """, unsafe_allow_html=True)
-    else:
-        st.sidebar.info("Digite Cidade e Congregação para ver o mapa.")
+        
+        st.markdown("---")
+        st.header("🔎 Buscar Oradores")
+        
+        meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+        st.selectbox("Mês Pretendido", meses) # Apenas visual por enquanto
+        
+        # Filtros de Localidade do Orador
+        cidades_disp = df_oradores['cidade'].unique() if 'cidade' in df_oradores.columns else []
+        filtro_cidade = st.selectbox("Cidade", ["Todas"] + list(cidades_disp)) if len(cidades_disp) > 0 else st.text_input("Cidade")
+        
+        filtro_cong = st.text_input("Congregação")
+        
+        st.info("Digite a congregação acima para ver os oradores disponíveis.")
 
-    # --- ÁREA PRINCIPAL (CARDS) ---
-    st.title(f"Oradores Disponíveis")
-    if congregacao_digitada:
-        st.caption(f"Buscando em: {congregacao_digitada} - {cidade_digitada}")
+    # --- ÁREA PRINCIPAL ---
+    st.title("Quadro de Discursos")
+
+    # Lógica de Filtro
+    df_filtrado = df_oradores.copy()
     
-    # Lógica de Filtro dos Cards
-    if not df_oradores.empty:
-        df_filtrado = df_oradores.copy()
+    # Se tiver as colunas, filtra. Se não, avisa.
+    if 'cidade' in df_filtrado.columns and filtro_cidade != "Todas" and filtro_cidade:
+        df_filtrado = df_filtrado[df_filtrado['cidade'].astype(str).str.contains(filtro_cidade, case=False)]
         
-        # Filtra por Cidade (se digitado)
-        if cidade_digitada:
-            df_filtrado = df_filtrado[df_filtrado['cidade'].astype(str).str.contains(cidade_digitada, case=False)]
-        
-        # Filtra por Congregação (se digitado)
-        if congregacao_digitada:
-            df_filtrado = df_filtrado[df_filtrado['congregacao'].astype(str).str.contains(congregacao_digitada, case=False)]
-        
-        # MOSTRAR CARDS
-        if df_filtrado.empty:
-            if congregacao_digitada:
-                st.warning("Nenhum orador encontrado nesta congregação. Verifique se a coluna 'congregacao' está preenchida na planilha.")
-            else:
-                st.info("Digite uma congregação ao lado para buscar oradores.")
-        else:
-            # Layout em Grid (3 colunas)
-            cols = st.columns(3)
-            
-            for index, row in df_filtrado.iterrows():
-                # Distribui os cards nas colunas
-                with cols[index % 3]:
-                    # Início do Card Visual
-                    st.markdown(f"""
-                    <div class="orador-card">
-                        <div class="orador-nome">{row['nome']}</div>
-                        <div class="orador-cargo">{row['cargo']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Botão para abrir agendamento (Expander dentro da coluna)
-                    with st.expander(f"📅 Agendar com {row['nome'].split()[0]}"):
-                        with st.form(key=f"form_{index}"):
-                            data_escolhida = st.date_input("Data", date.today())
-                            
-                            # Lógica Inteligente de Temas (Cruza IDs do orador com a lista de temas)
-                            temas_do_orador = []
-                            ids_raw = str(row['temas_ids']).replace(" ", "").split(",")
-                            
-                            # Filtra df_temas para pegar apenas os IDs que o orador faz
-                            # Assumindo que temas.csv tem colunas: numero, titulo
-                            for t_id in ids_raw:
-                                tema_match = df_temas[df_temas['numero'].astype(str) == t_id]
-                                if not tema_match.empty:
-                                    titulo = tema_match.iloc[0]['titulo']
-                                    temas_do_orador.append(f"{t_id} - {titulo}")
-                            
-                            # Se não achou temas pelos IDs, mostra todos (fallback)
-                            if not temas_do_orador:
-                                temas_do_orador = [f"{r['numero']} - {r['titulo']}" for i, r in df_temas.iterrows()]
-
-                            tema_selecionado = st.selectbox("Escolha o Tema", temas_do_orador)
-                            
-                            submitted = st.form_submit_button("Confirmar Agendamento")
-                            
-                            if submitted:
-                                # Salva na aba AGENDA
-                                # Formato: id(auto), data, orador, cargo, tema_numero, tema_titulo
-                                t_num = tema_selecionado.split(' - ')[0]
-                                t_tit = tema_selecionado.split(' - ')[1] if ' - ' in tema_selecionado else tema_selecionado
-                                
-                                ws_agenda.append_row([
-                                    "", # ID (vazio ou gerar auto)
-                                    data_escolhida.strftime("%d/%m/%Y"),
-                                    row['nome'],
-                                    row['cargo'],
-                                    t_num,
-                                    t_tit,
-                                    congregacao_digitada # Salva onde foi o discurso
-                                ])
-                                st.toast(f"Agendado! {row['nome']} dia {data_escolhida.strftime('%d/%m')}", icon="✅")
-                                time.sleep(1)
-                                st.rerun()
-
-                    # Botão de Enviar Solicitação (WhatsApp)
-                    if row['contato']:
-                        # Mensagem pré-formatada
-                        msg_wpp = f"Olá {row['nome']}, gostaríamos de convidar você para fazer um discurso na congregação {congregacao_digitada}."
-                        link_wpp = f"https://wa.me/55{str(row['contato']).replace(' ','').replace('-','')}?text={urllib.parse.quote(msg_wpp)}"
-                        st.markdown(f"""
-                            <a href="{link_wpp}" target="_blank" style="text-decoration: none;">
-                                <div style="text-align: center; margin-top: 5px; color: #25D366; font-weight: bold; border: 1px solid #25D366; border-radius: 5px; padding: 5px;">
-                                    💬 Enviar Solicitação
-                                </div>
-                            </a>
-                        """, unsafe_allow_html=True)
+    if 'congregacao' in df_filtrado.columns and filtro_cong:
+        df_filtrado = df_filtrado[df_filtrado['congregacao'].astype(str).str.contains(filtro_cong, case=False)]
+    
+    # Só mostra os cards se filtrar ou se pedir
+    if df_filtrado.empty:
+        st.warning("Nenhum orador encontrado com esses filtros.")
     else:
-        st.info("Carregando banco de dados...")
+        # Verifica se o usuário filtrou algo para não mostrar lista gigante (opcional)
+        # Mostrando GRID
+        cols = st.columns(3)
+        
+        for index, row in df_filtrado.iterrows():
+            with cols[index % 3]:
+                # CARD
+                nome = row.get('nome', 'Sem Nome')
+                cargo = row.get('cargo', 'Orador')
+                cong = row.get('congregacao', '')
+                
+                container = st.container()
+                container.markdown(f"""
+                <div class="orador-card">
+                    <div class="orador-nome">{nome}</div>
+                    <div class="orador-info">{cargo} {f'• {cong}' if cong else ''}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # ÁREA DE AGENDAMENTO (DENTRO DO CARD)
+                with container.expander(f"📅 Agendar", expanded=True):
+                    with st.form(key=f"form_{index}"):
+                        data_sel = st.date_input("Data", date.today())
+                        
+                        # Lista de Temas do Orador
+                        temas_ids = str(row.get('temas_ids', '')).replace(" ", "").split(",")
+                        lista_temas = []
+                        
+                        # Tenta casar IDs com Titulos
+                        if 'numero' in df_temas.columns and 'titulo' in df_temas.columns:
+                            for t_id in temas_ids:
+                                match = df_temas[df_temas['numero'].astype(str) == t_id]
+                                if not match.empty:
+                                    lista_temas.append(f"{t_id} - {match.iloc[0]['titulo']}")
+                            
+                            # Se não achou específicos, carrega todos
+                            if not lista_temas:
+                                lista_temas = [f"{r['numero']} - {r['titulo']}" for i, r in df_temas.iterrows()]
+                        else:
+                             lista_temas = ["Erro: Colunas numero/titulo não achadas na aba temas"]
+
+                        tema_sel = st.selectbox("Tema", lista_temas)
+                        
+                        if st.form_submit_button("Confirmar Agendamento"):
+                            # Salva na agenda
+                            t_num = tema_sel.split(' - ')[0]
+                            t_tit = tema_sel.split(' - ')[1] if ' - ' in tema_sel else tema_sel
+                            
+                            # Colunas Agenda: ID, Data, Orador, Cargo, Tema_Num, Tema_Tit
+                            ws_agenda.append_row([
+                                "", # ID
+                                data_sel.strftime("%d/%m/%Y"),
+                                nome,
+                                cargo,
+                                t_num,
+                                t_tit,
+                                cong  # Opcional: Salva a cong do orador pra referencia
+                            ])
+                            st.toast("Registrado na Agenda!", icon="✅")
+                            time.sleep(1); st.rerun()
 
 if __name__ == "__main__":
     main()

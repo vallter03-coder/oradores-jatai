@@ -38,10 +38,20 @@ st.markdown("""
 @st.cache_resource
 def conectar_google_sheets():
     """
-    Cria a conexão com o Google Sheets e faz cache para não reconectar a cada clique.
+    Cria a conexão. Tenta ler dos Secrets (Nuvem) primeiro. 
+    Se não achar, tenta ler do arquivo (Local).
     """
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    
+    # Tenta conectar usando os Segredos do Streamlit Cloud
+    if "gcp_service_account" in st.secrets:
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
+    # Se falhar, tenta procurar o arquivo (caso você esteja rodando no seu PC)
+    else:
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        
     client = gspread.authorize(creds)
     return client
 
@@ -285,3 +295,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

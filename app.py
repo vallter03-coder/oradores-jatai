@@ -17,7 +17,7 @@ st.set_page_config(
 
 # --- DADOS DO SISTEMA ---
 # IMPORTANTE: Troque pelo nome EXATO da sua planilha no Google Drive
-NOME_DA_SUA_PLANILHA_NO_GOOGLE = "NOME_DA_SUA_PLANILHA_AQUI" 
+NOME_DA_SUA_PLANILHA_NO_GOOGLE = "oradores_db" 
 
 # Estilo visual
 st.markdown("""
@@ -233,3 +233,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

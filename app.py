@@ -4,6 +4,7 @@ import locale
 from datetime import datetime, date
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd # Adicionado para visualizar a tabela de oradores melhor
 
 # ==========================================
 # 1. CONFIGURAÇÕES E ENDEREÇO
@@ -24,7 +25,6 @@ st.set_page_config(page_title="Solicitação de Oradores", layout="wide", page_i
 # ==========================================
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    # Se estiver no Streamlit Cloud usa Secrets, senão tenta local
     if "gcp_service_account" in st.secrets:
         creds_dict = dict(st.secrets["gcp_service_account"])
         if "private_key" in creds_dict:
@@ -63,7 +63,7 @@ def carregar_dados():
         return {"oradores": [], "temas": [], "solicitacoes": []}
 
 def salvar_dados(dados):
-    # Salva JSON na célula A1 da primeira aba (Método Rápido de Backup do User)
+    # Salva JSON na célula A1 da primeira aba (Método Rápido de Backup)
     try:
         client = conectar_gsheets()
         sheet = client.open(NOME_PLANILHA_GOOGLE).sheet1
@@ -84,30 +84,19 @@ st.markdown("""
 <style>
     .stApp { background-color: #F4F6F9; color: #333; }
     
-    /* Transformar containers em CARDS */
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: white;
-        border: 1px solid #E0E0E0;
-        border-radius: 8px;
-        padding: 15px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        background-color: white; border: 1px solid #E0E0E0; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    
-    /* Inputs */
-    .stTextInput input, .stSelectbox div, .stDateInput input {
-        background-color: #FFF; border-radius: 4px;
-    }
-    
-    /* Botões */
-    div.stButton > button {
-        background-color: #004E8C; color: white; border-radius: 6px; border: none; font-weight: 600;
-    }
+    .stTextInput input, .stSelectbox div, .stDateInput input { background-color: #FFF; border-radius: 4px; }
+    div.stButton > button { background-color: #004E8C; color: white; border-radius: 6px; border: none; font-weight: 600; }
     div.stButton > button:hover { background-color: #003366; }
-    
-    /* Sidebar */
     [data-testid="stSidebar"] { background-color: white; border-right: 1px solid #DDD; }
-    
     h1, h2, h3 { color: #004E8C; font-family: sans-serif; }
+    
+    /* Estilo do Card de Pedido no Admin */
+    .admin-card {
+        background-color: #F8F9FA; border-left: 4px solid #004E8C; padding: 10px; margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -115,12 +104,11 @@ ICONES = {"Ancião": "🛡️", "Servo Ministerial": "💼", "Outro": "👤"}
 MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
 
 # ==========================================
-# 4. ÁREA PÚBLICA (SOLICITAÇÃO)
+# 4. ÁREA PÚBLICA (MANTIDA IGUAL)
 # ==========================================
 def area_publica():
     st.markdown("### 👋 Solicitação de Oradores")
     
-    # --- PASSO 1: IDENTIFICAÇÃO ---
     with st.container(border=True):
         st.caption("📍 **Identificação da Congregação**")
         c1, c2, c3 = st.columns([1.5, 2, 1])
@@ -128,12 +116,10 @@ def area_publica():
         congregacao = c2.text_input("Sua Congregação:")
         mes_ref = c3.selectbox("Mês:", ["Selecione..."] + list(MAPA_MESES.keys()))
 
-    # SÓ MOSTRA OS CARDS SE TUDO ESTIVER PREENCHIDO
     if not cidade or not congregacao or mes_ref == "Selecione...":
         st.info("👆 Por favor, preencha Cidade, Congregação e Mês para ver os oradores disponíveis.")
         return
 
-    # Lógica de Data
     solicitante = f"{cidade} - {congregacao}"
     hoje = date.today()
     mes_num = MAPA_MESES[mes_ref]
@@ -142,7 +128,6 @@ def area_publica():
 
     st.divider()
     
-    # --- PASSO 2: CARDS DOS ORADORES ---
     if not db['oradores']:
         st.warning("Nenhum orador cadastrado.")
         return
@@ -152,29 +137,24 @@ def area_publica():
     
     for i, orador in enumerate(db['oradores']):
         with cols[i % 3]:
-            # CARD
             with st.container(border=True):
                 icone = ICONES.get(orador['cargo'], "👤")
                 st.markdown(f"#### {icone} {orador['nome']}")
                 st.caption(f"{orador['cargo']}")
                 st.markdown("---")
                 
-                # Data
                 st.markdown("**📅 Data:**")
                 d_pref = st.date_input("Data", value=data_padrao, min_value=hoje, format="DD/MM/YYYY", key=f"d_{i}", label_visibility="collapsed")
                 
-                # Temas (Radio Button = Bolinha de Check)
                 temas_ids = orador.get('temas_ids', [])
                 tema_sel = None
                 
                 if temas_ids:
                     st.markdown("**📖 Escolha o Tema:**")
-                    # Filtra e ordena temas
                     lista_t = [t for t in db['temas'] if t['numero'] in temas_ids]
                     lista_t.sort(key=lambda x: x['numero'])
                     opcoes = [f"{t['numero']} - {t['titulo']}" for t in lista_t]
                     
-                    # Scroll se tiver muitos temas
                     with st.container(height=150):
                         tema_sel = st.radio("Lista de Temas", opcoes, key=f"r_{i}", label_visibility="collapsed", index=None)
                 else:
@@ -182,7 +162,6 @@ def area_publica():
 
                 st.write("")
                 
-                # Botão Confirmar (Adicionar ao Carrinho)
                 ja_adicionado = any(item['orador'] == orador['nome'] and item['data'] == d_pref.strftime("%Y-%m-%d") for item in st.session_state['carrinho'])
                 
                 if ja_adicionado:
@@ -200,7 +179,6 @@ def area_publica():
                         else:
                             st.error("Escolha um tema!")
 
-    # --- SIDEBAR (RESUMO DO PEDIDO) ---
     with st.sidebar:
         st.header("📋 Resumo do Pedido")
         st.info(f"Mês: {mes_ref}/{ano}")
@@ -231,7 +209,7 @@ def area_publica():
                 }
                 if "solicitacoes" not in db: db["solicitacoes"] = []
                 db['solicitacoes'].append(novo_pedido)
-                salvar_dados(db) # Salva no JSON/Backup
+                salvar_dados(db) 
                 st.session_state['carrinho'] = []
                 st.success("Solicitação enviada!")
                 st.balloons()
@@ -239,34 +217,140 @@ def area_publica():
             st.caption("Sua lista está vazia.")
 
 # ==========================================
-# 5. ÁREA ADMIN (MANTIDA)
+# 5. ÁREA ADMIN (ATUALIZADA)
 # ==========================================
 def area_admin():
     st.title("🔒 Painel do Coordenador")
-    tab1, tab2 = st.tabs(["📩 Pedidos", "👥 Oradores"])
+    tab1, tab2 = st.tabs(["📩 Pedidos Recebidos", "👥 Gerenciar Oradores"])
     
+    # --- ABA 1: PEDIDOS ---
     with tab1:
-        if not db['solicitacoes']: st.info("Sem pedidos.")
+        if not db['solicitacoes']: 
+            st.info("Nenhuma solicitação nova.")
         else:
             for solic in reversed(db['solicitacoes']):
-                with st.expander(f"{solic['solicitante']} - {solic['mes']}"):
-                    txt = f"*Pedido: {solic['solicitante']}*\n"
-                    for it in solic['itens']:
-                        dt = datetime.strptime(it['data'], "%Y-%m-%d").strftime("%d/%m")
-                        st.write(f"🗓️ **{dt}** - {it['orador']} ({it['tema']})")
-                        txt += f"{dt} - {it['orador']}\n"
+                with st.expander(f"📌 {solic['solicitante']} - {solic['mes']}"):
+                    # Cabeçalho da mensagem do WhatsApp
+                    texto_zap = f"*PEDIDO DE ORADORES*\n"
+                    texto_zap += f"🏛️ *{solic['solicitante']}*\n"
+                    texto_zap += f"📅 Ref: {solic['mes']}\n\n"
                     
-                    c1, c2 = st.columns([3,1])
-                    c1.code(txt)
-                    if c2.button("Excluir", key=f"del_{solic['id']}"):
-                        db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
-                        salvar_dados(db)
-                        st.rerun()
+                    st.markdown(f"**Enviado em:** {solic['data_envio']}")
+                    
+                    for item in solic['itens']:
+                        dt_obj = datetime.strptime(item['data'], "%Y-%m-%d")
+                        data_fmt = dt_obj.strftime("%d/%m")
+                        icone = ICONES.get(item['cargo'], "👤")
+                        
+                        # Mostra Card
+                        st.markdown(f"""
+                        <div class="admin-card">
+                            <div>🗓️ <b>{data_fmt}</b> - {icone} {item['orador']}</div>
+                            <div style="font-style:italic; color:#555;">📖 {item['tema']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Adiciona ao texto do Zap (Com ícone e tema completo)
+                        texto_zap += f"{icone} *{data_fmt}* - {item['orador']}\n"
+                        texto_zap += f"📖 {item['tema']}\n\n"
+                    
+                    texto_zap += "Att, Coordenação."
+                    
+                    st.divider()
+                    c1, c2 = st.columns([3, 1])
+                    c1.text_area("Copiar para WhatsApp:", texto_zap, height=200)
+                    
+                    with c2:
+                        st.write("")
+                        st.write("")
+                        if st.button("🗑️ Excluir", key=f"del_{solic['id']}", type="primary", use_container_width=True):
+                            db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
+                            salvar_dados(db)
+                            st.rerun()
 
+    # --- ABA 2: ORADORES (CRUD COMPLETO) ---
     with tab2:
-        st.write("Edição Rápida")
-        # (Código simplificado de oradores mantido da versão anterior se necessário)
-        # Como o foco era o front-end público, mantive o admin básico.
+        st.subheader("Cadastro de Oradores")
+        
+        # VISUALIZAÇÃO EM TABELA
+        if db['oradores']:
+            df_show = pd.DataFrame(db['oradores'])
+            # Simplifica visualização dos temas
+            df_show['temas_ids'] = df_show['temas_ids'].apply(lambda x: f"{len(x)} temas" if isinstance(x, list) else "0")
+            st.dataframe(df_show, use_container_width=True, hide_index=True)
+        else:
+            st.info("Lista vazia.")
+
+        st.divider()
+        
+        # CONTROLES DE ADICIONAR / EDITAR
+        acao = st.radio("Ação:", ["➕ Adicionar Novo", "✏️ Editar Existente"], horizontal=True)
+        
+        if acao == "➕ Adicionar Novo":
+            with st.form("add_orador_form"):
+                nome_novo = st.text_input("Nome Completo")
+                cargo_novo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
+                
+                # Multiselect para Temas
+                opcoes_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+                temas_sel = st.multiselect("Temas Habilitados", opcoes_temas)
+                
+                if st.form_submit_button("Salvar Novo Orador"):
+                    if nome_novo:
+                        # Extrai IDs dos temas selecionados
+                        ids = [int(t.split(' - ')[0]) for t in temas_sel]
+                        db['oradores'].append({
+                            "nome": nome_novo,
+                            "cargo": cargo_novo,
+                            "temas_ids": ids
+                        })
+                        salvar_dados(db)
+                        st.success(f"{nome_novo} adicionado!")
+                        st.rerun()
+                    else:
+                        st.error("Digite o nome.")
+                        
+        elif acao == "✏️ Editar Existente":
+            if not db['oradores']:
+                st.warning("Nenhum orador para editar.")
+            else:
+                lista_nomes = [o['nome'] for o in db['oradores']]
+                sel_nome = st.selectbox("Selecione o Orador:", lista_nomes)
+                
+                # Acha o índice do orador
+                idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel_nome)
+                dados_atuais = db['oradores'][idx]
+                
+                with st.form("edit_orador_form"):
+                    nome_edit = st.text_input("Nome", value=dados_atuais['nome'])
+                    
+                    idx_cargo = ["Ancião", "Servo Ministerial", "Outro"].index(dados_atuais.get('cargo', 'Outro'))
+                    cargo_edit = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=idx_cargo)
+                    
+                    # Prepara temas pré-selecionados
+                    opcoes_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+                    default_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dados_atuais.get('temas_ids', [])]
+                    
+                    temas_edit = st.multiselect("Temas Habilitados", opcoes_temas, default=default_temas)
+                    
+                    c_save, c_del = st.columns([2, 1])
+                    save_btn = c_save.form_submit_button("🔄 Atualizar")
+                    del_btn = c_del.form_submit_button("🗑️ Excluir Orador", type="primary")
+                    
+                    if save_btn:
+                        ids_novos = [int(t.split(' - ')[0]) for t in temas_edit]
+                        db['oradores'][idx]['nome'] = nome_edit
+                        db['oradores'][idx]['cargo'] = cargo_edit
+                        db['oradores'][idx]['temas_ids'] = ids_novos
+                        salvar_dados(db)
+                        st.success("Atualizado!")
+                        st.rerun()
+                        
+                    if del_btn:
+                        db['oradores'].pop(idx)
+                        salvar_dados(db)
+                        st.warning("Orador excluído.")
+                        st.rerun()
 
 # ==========================================
 # 6. CONTROLE DE TELA

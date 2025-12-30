@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, date
+import time
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Gestão de Discursos", layout="wide")
@@ -10,215 +11,219 @@ st.set_page_config(page_title="Gestão de Discursos", layout="wide")
 # --- CONEXÃO COM GOOGLE SHEETS ---
 def get_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    # Certifique-se que o arquivo credentials.json está na mesma pasta
     creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
-    # Substitua pelo ID ou Nome da sua planilha
+    # IMPORTANTE: Coloque o nome exato da sua planilha aqui
     sh = client.open("NOME_DA_SUA_PLANILHA") 
     return sh
 
-# --- FUNÇÕES DE CARREGAMENTO ---
+# --- VERIFICAÇÃO E CORREÇÃO DE CABEÇALHOS ---
+def garantir_cabecalhos(sh):
+    # Verifica Oradores
+    try:
+        ws_oradores = sh.worksheet("ORADORES A1")
+    except:
+        ws_oradores = sh.add_worksheet(title="ORADORES A1", rows=100, cols=10)
+    
+    # Se A1 estiver vazia, cria o cabeçalho para evitar sobrescrever
+    if not ws_oradores.acell('A1').value:
+        ws_oradores.update('A1:C1', [['Nome', 'Congregacao', 'Contato']])
+
+    # Verifica Programação
+    try:
+        ws_prog = sh.worksheet("PROGRAMACAO")
+    except:
+        ws_prog = sh.add_worksheet(title="PROGRAMACAO", rows=100, cols=10)
+        
+    if not ws_prog.acell('A1').value:
+        ws_prog.update('A1:D1', [['Data', 'Orador', 'Tema', 'Congregacao']])
+
+    return ws_oradores, ws_prog
+
+# --- CARREGAR DADOS ---
 def carregar_dados():
     sh = get_connection()
+    ws_oradores, ws_prog = garantir_cabecalhos(sh) # Garante que A1 não será sobrescrito
     
-    # Carregar Oradores
-    ws_oradores = sh.worksheet("ORADORES A1")
+    # Oradores
     dados_oradores = ws_oradores.get_all_records()
     df_oradores = pd.DataFrame(dados_oradores)
     
-    # Carregar Temas
+    # Temas
     ws_temas = sh.worksheet("TEMAS")
     dados_temas = ws_temas.get_all_records()
     df_temas = pd.DataFrame(dados_temas)
     
-    # Carregar Programação (Histórico)
-    try:
-        ws_prog = sh.worksheet("PROGRAMACAO")
-        dados_prog = ws_prog.get_all_records()
-        df_prog = pd.DataFrame(dados_prog)
-    except:
-        # Se não existir, cria um DF vazio
-        df_prog = pd.DataFrame(columns=["Data", "Orador", "Tema", "Congregação"])
-        
-    return df_oradores, df_temas, df_prog, sh
+    # Programação
+    dados_prog = ws_prog.get_all_records()
+    df_prog = pd.DataFrame(dados_prog)
+    
+    return df_oradores, df_temas, df_prog, sh, ws_oradores, ws_prog
 
-# --- FUNÇÃO AUXILIAR: BUSCAR ÚLTIMA DATA ---
+# --- VERIFICAR DATA ANTERIOR ---
 def verificar_ultima_data(df_prog, orador, tema):
     if df_prog.empty:
         return None
     
-    # Filtra onde o orador e o tema coincidem
-    filtro = df_prog[(df_prog['Orador'] == orador) & (df_prog['Tema'].astype(str).str.contains(str(tema).split('.')[0]))]
+    # Tenta extrair o número do tema (ex: "12 - Amor" -> "12")
+    try:
+        num_tema = str(tema).split(' - ')[0].strip()
+        # Filtra histórico
+        filtro = df_prog[
+            (df_prog['Orador'] == orador) & 
+            (df_prog['Tema'].astype(str).str.startswith(num_tema))
+        ]
+    except:
+        return None
     
     if not filtro.empty:
-        # Pega a data mais recente
+        # Converte datas e pega a maior
         datas = pd.to_datetime(filtro['Data'], format='%d/%m/%Y', errors='coerce')
-        ultima_data = datas.max()
-        return ultima_data.strftime('%d/%m/%Y')
+        ultima = datas.max()
+        if pd.notnull(ultima):
+            return ultima.strftime('%d/%m/%Y')
     return None
 
-# --- INTERFACE ---
-st.title("Sistema de Gestão de Discursos Públicos")
+# --- APP PRINCIPAL ---
+st.title("Sistema de Discursos")
 
-# Carrega tudo no início
 try:
-    df_oradores, df_temas, df_prog, sh = carregar_dados()
-    st.toast("Conexão com a planilha estabelecida!", icon="✅")
+    df_oradores, df_temas, df_prog, sh, ws_oradores, ws_prog = carregar_dados()
 except Exception as e:
-    st.error(f"Erro ao conectar com a planilha: {e}")
+    st.error(f"Erro ao conectar. Verifique se o nome da planilha está correto e se o credentials.json existe.\nErro: {e}")
     st.stop()
 
 # --- MENU LATERAL ---
-menu = st.sidebar.selectbox("Menu", ["Visualizar Escala", "Coordenador (Área Restrita)"])
+menu = st.sidebar.radio("Navegação", ["Visualizar Escala", "Área do Coordenador"])
 
 # ---------------------------------------------------------
-# ABA: VISUALIZAR ESCALA
+# VISUALIZAR
 # ---------------------------------------------------------
 if menu == "Visualizar Escala":
-    st.header("📅 Próximos Discursos")
-    
+    st.subheader("📅 Próximos Discursos")
     if not df_prog.empty:
-        # Converte coluna de data para ordenar
+        # Ordenação
         df_prog['Data_Sort'] = pd.to_datetime(df_prog['Data'], format='%d/%m/%Y', errors='coerce')
         df_view = df_prog.sort_values(by='Data_Sort', ascending=False).drop(columns=['Data_Sort'])
-        
         st.dataframe(df_view, use_container_width=True, hide_index=True)
     else:
-        st.info("Nenhuma programação registrada ainda.")
+        st.info("Nenhuma programação cadastrada.")
 
 # ---------------------------------------------------------
-# ABA: COORDENADOR
+# COORDENADOR
 # ---------------------------------------------------------
-elif menu == "Coordenador (Área Restrita)":
-    senha = st.sidebar.text_input("Senha de Acesso", type="password")
+elif menu == "Área do Coordenador":
+    senha = st.sidebar.text_input("Senha", type="password")
     
-    if senha == "1234":  # Senha simples para exemplo
-        st.success("Acesso Liberado")
+    if senha == "1234":
+        st.success("Logado como Coordenador")
         
-        tab1, tab2, tab3 = st.tabs(["➕ Registrar Discurso", "👥 Gerenciar Oradores", "📜 Histórico Completo"])
+        # Usando abas claras
+        tab_novo, tab_gerenciar = st.tabs(["📝 Nova Designação", "⚙️ Gerenciar Oradores"])
         
-        # --- TAB 1: REGISTRAR NOVO DISCURSO ---
-        with tab1:
-            st.subheader("Nova Designação")
+        # --- ABA 1: NOVA DESIGNAÇÃO ---
+        with tab_novo:
+            st.markdown("### Registrar Novo Discurso")
             
-            with st.form("form_designacao"):
-                col1, col2 = st.columns(2)
+            if df_oradores.empty:
+                st.warning("Cadastre oradores primeiro na outra aba!")
+            else:
+                with st.form("form_prog"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_sel = st.date_input("Data", date.today())
+                        orador_sel = st.selectbox("Orador", df_oradores['Nome'].unique())
+                    with col2:
+                        lista_temas = [f"{row['Numero']} - {row['Tema']}" for i, row in df_temas.iterrows()]
+                        tema_sel = st.selectbox("Tema", lista_temas)
+                    
+                    btn_salvar_prog = st.form_submit_button("Salvar Designação")
                 
-                with col1:
-                    data_designacao = st.date_input("Data do Discurso", date.today())
-                    # Lista de Oradores
-                    lista_oradores = df_oradores['Nome'].tolist() if not df_oradores.empty else []
-                    orador_selecionado = st.selectbox("Selecione o Orador", lista_oradores)
-                
-                with col2:
-                    # Lista de Temas (Concatenando Numero e Titulo para facilitar)
-                    lista_temas = [f"{row['Numero']} - {row['Tema']}" for index, row in df_temas.iterrows()] if not df_temas.empty else []
-                    tema_selecionado = st.selectbox("Selecione o Tema", lista_temas)
-                
-                # --- CHECK DE ÚLTIMA DATA (VISUALIZAÇÃO ANTES DE ENVIAR) ---
-                # Nota: Dentro de st.form, a interatividade é limitada, mas podemos mostrar avisos pós-clique ou usar session_state.
-                # Para simplificar, faremos a verificação ao clicar no botão.
-                
-                submit_prog = st.form_submit_button("💾 Salvar na Programação")
-            
-            if submit_prog:
-                if orador_selecionado and tema_selecionado:
-                    # 1. Verifica Histórico
-                    numero_tema = tema_selecionado.split(' - ')[0]
-                    ultima_vez = verificar_ultima_data(df_prog, orador_selecionado, numero_tema)
+                # Lógica ao clicar (fora do form para permitir alerts)
+                if btn_salvar_prog:
+                    # 1. Verifica Última Data ANTES de salvar (Baseado no histórico carregado)
+                    ultima_vez = verificar_ultima_data(df_prog, orador_sel, tema_sel)
                     
-                    # 2. Salva
-                    ws_prog = sh.worksheet("PROGRAMACAO")
-                    data_formatada = data_designacao.strftime("%d/%m/%Y")
+                    # 2. Salva no Sheets
+                    data_fmt = data_sel.strftime("%d/%m/%Y")
+                    # Pega congregação
+                    cong = df_oradores.loc[df_oradores['Nome'] == orador_sel, 'Congregacao'].values[0]
                     
-                    # Busca congregação do orador selecionado
-                    congregacao_orador = df_oradores.loc[df_oradores['Nome'] == orador_selecionado, 'Congregacao'].values[0]
+                    ws_prog.append_row([data_fmt, orador_sel, tema_sel, cong])
                     
-                    ws_prog.append_row([data_formatada, orador_selecionado, tema_selecionado, congregacao_orador])
+                    st.toast(f"Salvo! {orador_sel} em {data_fmt}", icon="✅")
                     
-                    st.success(f"Designação salva com sucesso para {data_formatada}!")
-                    
-                    # 3. Exibe mensagem da última vez
+                    # 3. Mostra Alerta se já fez (Usando Session State para persistir após reload ou warning imediato)
                     if ultima_vez:
-                        st.warning(f"⚠️ Atenção: Este orador já fez este tema em: **{ultima_vez}**")
+                        st.error(f"⚠️ AVISO CRÍTICO: Este orador JÁ FEZ este tema em {ultima_vez}!")
+                        time.sleep(4) # Pausa para você ler antes de recarregar
                     else:
-                        st.info("ℹ️ Este orador nunca fez este tema nesta base de dados.")
+                        st.success("Primeira vez registrando este tema nesta base.")
+                        time.sleep(1)
                         
-                    # Recarregar cache (opcional, força atualização visual)
-                    # st.rerun() 
-                else:
-                    st.error("Preencha todos os campos.")
+                    # 4. RECARREGA A PÁGINA PARA ATUALIZAR DADOS
+                    st.rerun()
 
-        # --- TAB 2: GERENCIAR ORADORES (ADICIONAR / EDITAR / EXCLUIR) ---
-        with tab2:
-            st.subheader("Cadastro de Oradores")
+        # --- ABA 2: GERENCIAR ORADORES ---
+        with tab_gerenciar:
+            st.markdown("### Adicionar ou Editar Oradores")
             
-            action = st.radio("Ação:", ["Adicionar Novo", "Editar/Excluir Existente"], horizontal=True)
+            modo = st.radio("O que deseja fazer?", ["Adicionar Novo", "Editar/Excluir"], horizontal=True)
             
-            if action == "Adicionar Novo":
+            # MODO ADICIONAR
+            if modo == "Adicionar Novo":
                 with st.form("add_orador"):
-                    novo_nome = st.text_input("Nome do Orador")
-                    nova_cong = st.text_input("Congregação")
-                    novo_contato = st.text_input("Contato/WhatsApp")
-                    submit_add = st.form_submit_button("Adicionar Orador")
+                    n_nome = st.text_input("Nome Completo")
+                    n_cong = st.text_input("Congregação")
+                    n_cont = st.text_input("Contato")
+                    btn_add = st.form_submit_button("Adicionar")
                     
-                    if submit_add:
-                        if novo_nome and nova_cong:
-                            ws_oradores = sh.worksheet("ORADORES A1")
-                            # CORREÇÃO DO BUG: Usando append_row simples
-                            ws_oradores.append_row([novo_nome, nova_cong, novo_contato])
-                            st.success(f"Orador {novo_nome} adicionado!")
+                    if btn_add:
+                        if n_nome and n_cong:
+                            # Adiciona garantindo que não sobrescreve header
+                            ws_oradores.append_row([n_nome, n_cong, n_cont])
+                            st.success(f"{n_nome} adicionado!")
+                            time.sleep(1)
                             st.rerun()
                         else:
-                            st.error("Nome e Congregação são obrigatórios.")
-                            
-            elif action == "Editar/Excluir Existente":
+                            st.warning("Nome e Congregação obrigatórios")
+
+            # MODO EDITAR/EXCLUIR
+            elif modo == "Editar/Excluir":
                 if df_oradores.empty:
-                    st.warning("Sem oradores para editar.")
+                    st.warning("Nenhum orador cadastrado.")
                 else:
-                    orador_edit_sel = st.selectbox("Selecione para editar/excluir", df_oradores['Nome'].unique())
+                    sel_edit = st.selectbox("Selecione o Orador para alterar:", df_oradores['Nome'].unique())
                     
-                    # Pegar dados atuais
-                    dados_atuais = df_oradores[df_oradores['Nome'] == orador_edit_sel].iloc[0]
+                    # Busca dados atuais
+                    dados = df_oradores[df_oradores['Nome'] == sel_edit].iloc[0]
                     
-                    with st.form("edit_orador"):
-                        edit_nome = st.text_input("Nome", value=dados_atuais['Nome'])
-                        edit_cong = st.text_input("Congregação", value=dados_atuais['Congregacao'])
-                        edit_contato = st.text_input("Contato", value=str(dados_atuais['Contato']))
-                        
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            btn_atualizar = st.form_submit_button("🔄 Atualizar Dados")
-                        with col_b:
-                            btn_excluir = st.form_submit_button("🗑️ Excluir Orador", type="primary")
-                        
-                        if btn_atualizar:
-                            ws_oradores = sh.worksheet("ORADORES A1")
-                            # Encontrar a linha (gspread é base 1, header é linha 1, então +2 no index do pandas)
-                            # Mas é mais seguro buscar pela célula para evitar desalinhamento se a planilha mudar
-                            cell = ws_oradores.find(orador_edit_sel)
-                            if cell:
-                                # Atualiza as colunas (assumindo ordem: Nome, Congregacao, Contato)
-                                ws_oradores.update_cell(cell.row, 1, edit_nome)
-                                ws_oradores.update_cell(cell.row, 2, edit_cong)
-                                ws_oradores.update_cell(cell.row, 3, edit_contato)
-                                st.success("Dados atualizados!")
-                                st.rerun()
-                            else:
-                                st.error("Erro ao encontrar linha na planilha.")
-
-                        if btn_excluir:
-                            ws_oradores = sh.worksheet("ORADORES A1")
-                            cell = ws_oradores.find(orador_edit_sel)
-                            if cell:
-                                ws_oradores.delete_rows(cell.row)
-                                st.success(f"{orador_edit_sel} excluído com sucesso.")
-                                st.rerun()
-                            else:
-                                st.error("Erro ao encontrar linha para excluir.")
-
-        # --- TAB 3: HISTÓRICO ---
-        with tab3:
-            st.dataframe(df_prog, use_container_width=True)
+                    # Formulário de Edição
+                    st.markdown("---")
+                    col_e1, col_e2, col_e3 = st.columns(3)
+                    new_nome = col_e1.text_input("Nome", value=dados['Nome'])
+                    new_cong = col_e2.text_input("Congregação", value=dados['Congregacao'])
+                    new_cont = col_e3.text_input("Contato", value=str(dados['Contato']))
+                    
+                    col_b1, col_b2 = st.columns(2)
+                    if col_b1.button("💾 Atualizar Dados"):
+                        cell = ws_oradores.find(sel_edit)
+                        if cell:
+                            ws_oradores.update_cell(cell.row, 1, new_nome)
+                            ws_oradores.update_cell(cell.row, 2, new_cong)
+                            ws_oradores.update_cell(cell.row, 3, new_cont)
+                            st.success("Atualizado!")
+                            time.sleep(1)
+                            st.rerun()
+                    
+                    if col_b2.button("🗑️ EXCLUIR ORADOR", type="primary"):
+                        cell = ws_oradores.find(sel_edit)
+                        if cell:
+                            ws_oradores.delete_rows(cell.row)
+                            st.warning("Excluído!")
+                            time.sleep(1)
+                            st.rerun()
 
     else:
-        st.error("Senha incorreta.")
+        st.error("Senha Incorreta")

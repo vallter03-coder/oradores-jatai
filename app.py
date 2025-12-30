@@ -63,7 +63,7 @@ def carregar_planilha():
     # --------------------------------------------------------------------------
     # ATENÇÃO: COLOQUE O NOME DA SUA PLANILHA AQUI EMBAIXO
     # --------------------------------------------------------------------------
-    NOME_PLANILHA = "NOME_DA_SUA_PLANILHA"  # <--- EDITE AQUI SE PRECISAR
+    NOME_PLANILHA = "oradores_db"  # <--- EDITE AQUI SE PRECISAR
     
     try:
         sh = client.open(NOME_PLANILHA)
@@ -295,4 +295,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

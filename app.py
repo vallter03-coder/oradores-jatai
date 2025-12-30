@@ -39,7 +39,7 @@ def carregar_dados():
     """Lê todas as abas da planilha e formata para o app"""
     try:
         client = conectar_gsheets()
-        sh = client.open(NOME_PLANILHA_GOOGLE) # Usa a variável que você definiu lá em cima
+        sh = client.open(NOME_PLANILHA_GOOGLE)
         
         # --- 1. Carregar Oradores ---
         ws_oradores = sh.worksheet("oradores")
@@ -47,11 +47,9 @@ def carregar_dados():
         oradores_formatados = []
         
         for row in raw_oradores:
-            # Converte a string "4, 22, 30" da planilha para lista [4, 22, 30]
             ids_str = str(row.get('temas_ids', ''))
             if ids_str and ids_str.strip():
                 try:
-                    # Separa por vírgula e converte para inteiro
                     ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
                 except:
                     ids = []
@@ -66,10 +64,8 @@ def carregar_dados():
 
         # --- 2. Carregar Agenda ---
         ws_agenda = sh.worksheet("agenda")
-        # Garante que 'tema_numero' seja lido como número, não texto
         agenda = ws_agenda.get_all_records()
         for item in agenda:
-            # Conversão de segurança caso o Google Sheets mande como texto
             if 'tema_numero' in item and str(item['tema_numero']).isdigit():
                 item['tema_numero'] = int(item['tema_numero'])
 
@@ -86,20 +82,19 @@ def carregar_dados():
             "agenda": agenda,
             "temas": temas,
             "solicitacoes": solicitacoes,
-            "historico_local": [] # Deixe vazio se não criou a aba
+            "historico_local": [] 
         }
 
     except Exception as e:
         st.error(f"Erro ao conectar na planilha: {e}")
-        # Retorna estrutura vazia para não quebrar o site totalmente
         return {"oradores": [], "agenda": [], "temas": [], "solicitacoes": [], "historico_local": []}
 
 def salvar_dados(dados):
     try:
         client = conectar_gsheets()
         sheet = client.open(NOME_PLANILHA_GOOGLE).sheet1
-        # Transformamos tudo em texto e salvamos na célula A1
-        # Isso transforma a planilha em um "banco de dados JSON" simples
+        # OBS: Se você estiver usando abas separadas, o ideal seria atualizar cada aba.
+        # Este método salva um JSON na aba 1 (funciona como backup rápido ou DB simples).
         conteudo_texto = json.dumps(dados, ensure_ascii=False)
         sheet.update_acell('A1', conteudo_texto)
     except Exception as e:
@@ -278,8 +273,14 @@ def area_admin():
                 dt_obj = datetime.strptime(mais_recente['data'], "%Y-%m-%d").date()
                 dias = (date.today() - dt_obj).days
                 dt_fmt = dt_obj.strftime("%d/%m/%Y")
-                if dias < 365: st.markdown(f"<div class='status-alert'>⚠️ Feito há {dias} dias ({dt_fmt})</div>", unsafe_allow_html=True)
-                else: st.markdown(f"<div class='status-ok'>✅ Feito há {dias} dias ({dt_fmt})</div>", unsafe_allow_html=True)
+                
+                # --- BUSCA: Traz o titulo do tema ---
+                nome_tema_busca = next((t['titulo'] for t in db['temas'] if t['numero'] == num_busca), "Tema Desconhecido")
+                
+                msg = f"#{num_busca} - {nome_tema_busca}<br>Feito há {dias} dias ({dt_fmt})"
+                
+                if dias < 365: st.markdown(f"<div class='status-alert'>⚠️ {msg}</div>", unsafe_allow_html=True)
+                else: st.markdown(f"<div class='status-ok'>✅ {msg}</div>", unsafe_allow_html=True)
             else: st.markdown("<div class='status-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
         st.divider()
         st.write("### ➕ Registrar")
@@ -293,38 +294,73 @@ def area_admin():
             salvar_dados(db)
             st.success("Salvo!")
             st.rerun()
+        
         with st.expander("Ver lista completa"):
             if db.get('historico_local'):
                 hist_sorted = sorted(db['historico_local'], key=lambda x: x['data'], reverse=True)
                 for i, hist in enumerate(hist_sorted):
-                    d_fmt = datetime.strptime(hist['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    d_obj = datetime.strptime(hist['data'], "%Y-%m-%d").date()
+                    d_fmt = d_obj.strftime("%d/%m/%Y")
+                    dias_atras = (date.today() - d_obj).days
+                    
+                    # --- LISTA: Pega o titulo do tema pelo numero ---
+                    t_titulo = next((t['titulo'] for t in db['temas'] if t['numero'] == hist['tema_numero']), "Desconhecido")
+                    
                     c1, c2 = st.columns([4, 1])
-                    c1.text(f"{d_fmt} - #{hist['tema_numero']}")
+                    # Mostra: Data - #Numero Titulo (ha X dias)
+                    c1.markdown(f"**{d_fmt}** — #{hist['tema_numero']} **{t_titulo}** <br><span style='color: gray; font-size: 0.9em;'>(há {dias_atras} dias)</span>", unsafe_allow_html=True)
                     if c2.button("🗑️", key=f"del_hist_{i}"):
                         db['historico_local'].remove(hist)
                         salvar_dados(db)
                         st.rerun()
+
     with tab3:
         st.write("### Oradores")
         nomes_oradores = [o['nome'] for o in db['oradores']]
-        orador_edit_nome = st.selectbox("Editar:", ["-- Novo --"] + nomes_oradores)
+        orador_edit_nome = st.selectbox("Selecione para Editar:", ["-- Novo --"] + nomes_oradores)
+        
         if orador_edit_nome == "-- Novo --":
-            nn = st.text_input("Nome:")
+            st.markdown("#### Cadastrar Novo")
+            nn = st.text_input("Nome do Novo Orador:")
             nc = st.selectbox("Cargo:", ["Ancião", "Servo Ministerial", "Outro"])
             if st.button("Salvar Novo", use_container_width=True):
-                db['oradores'].append({"nome": nn, "cargo": nc, "temas_ids": []})
-                salvar_dados(db)
-                st.rerun()
+                if nn:
+                    db['oradores'].append({"nome": nn, "cargo": nc, "temas_ids": []})
+                    salvar_dados(db)
+                    st.success("Orador Criado!")
+                    st.rerun()
+                else:
+                    st.error("Preencha o nome.")
         else:
+            st.markdown(f"#### Editando: {orador_edit_nome}")
             idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == orador_edit_nome)
             orador_atual = db['oradores'][idx]
+            
+            # --- EDITAR NOME E CARGO ---
+            novo_nome = st.text_input("Nome:", value=orador_atual['nome'])
             n_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=["Ancião", "Servo Ministerial", "Outro"].index(orador_atual.get('cargo', 'Outro')))
+            
+            # --- TEMAS ---
             temas_sel = st.multiselect("Temas:", options=db['temas'], format_func=lambda x: f"{x['numero']} - {x['titulo']}", default=[t for t in db['temas'] if t['numero'] in orador_atual.get('temas_ids', [])])
-            if st.button("Salvar Alterações", use_container_width=True):
-                db['oradores'][idx]['cargo'] = n_cargo
-                db['oradores'][idx]['temas_ids'] = [t['numero'] for t in temas_sel]
-                salvar_dados(db)
-                st.rerun()
+            
+            st.write("")
+            col_salvar, col_excluir = st.columns([2, 1])
+            
+            with col_salvar:
+                if st.button("💾 Salvar Alterações", use_container_width=True):
+                    db['oradores'][idx]['nome'] = novo_nome # Salva o novo nome
+                    db['oradores'][idx]['cargo'] = n_cargo
+                    db['oradores'][idx]['temas_ids'] = [t['numero'] for t in temas_sel]
+                    salvar_dados(db)
+                    st.success("Atualizado!")
+                    st.rerun()
+            
+            with col_excluir:
+                if st.button("🗑️ Excluir Orador", type="primary", use_container_width=True):
+                    db['oradores'].pop(idx) # Remove da lista
+                    salvar_dados(db)
+                    st.warning("Orador excluído.")
+                    st.rerun()
 
 col_header_titulo, col_header_login = st.columns([6, 1])
 with col_header_titulo:

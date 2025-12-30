@@ -4,28 +4,57 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, date
 import time
+import urllib.parse
 
 # ==============================================================================
-# 1. CONFIGURAÇÕES
+# 1. CONFIGURAÇÕES VISUAIS (ESTILO DE CARDS)
 # ==============================================================================
-st.set_page_config(page_title="Gestão de Discursos", page_icon="🎤", layout="wide")
+st.set_page_config(page_title="Sistema de Discursos", page_icon="jx", layout="wide")
 
-# NOME DA PLANILHA (Exatamente como você falou)
 NOME_PLANILHA = "oradores_db"
-MINHA_CONGREGACAO = "PARQUE JATAÍ"
-MINHA_CIDADE = "Votorantim"
 
 st.markdown("""
 <style>
-    .stApp {background-color: #FFFFFF; color: #31333F;}
-    h1, h2, h3 {color: #004E8C;}
-    .stButton button {background-color: #004E8C; color: white; border-radius: 6px; border: none; padding: 0.5rem 1rem;}
-    .stButton button:hover {background-color: #003865;}
+    /* Fundo e Texto */
+    .stApp {background-color: #F4F6F9; color: #333;}
+    
+    /* Estilo do CARD do Orador */
+    .orador-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #E0E0E0;
+        margin-bottom: 15px;
+    }
+    .orador-nome {
+        font-size: 18px;
+        font-weight: bold;
+        color: #2C3E50;
+    }
+    .orador-cargo {
+        color: #7F8C8D;
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+    
+    /* Botões */
+    .stButton button {
+        width: 100%;
+        border-radius: 5px;
+        font-weight: 600;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF;
+        border-right: 1px solid #ddd;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. CONEXÃO E DADOS
+# 2. CONEXÃO
 # ==============================================================================
 @st.cache_resource
 def conectar():
@@ -39,181 +68,168 @@ def conectar():
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     return gspread.authorize(creds)
 
-def normalizar_df(df):
-    """Padroniza os nomes das colunas para facilitar o código"""
-    # Remove espaços e coloca tudo em minúsculo para comparar
-    mapa = {}
-    for col in df.columns:
-        c_clean = col.strip().lower()
-        if c_clean in ['titulo', 'tema', 'tema_titulo']: mapa[col] = 'Tema'
-        elif c_clean in ['numero', 'num', 'id', 'tema_numero']: mapa[col] = 'Numero'
-        elif c_clean in ['nome', 'orador', 'nome_irmao']: mapa[col] = 'Nome' # Para oradores
-        elif c_clean in ['data', 'data_designacao']: mapa[col] = 'Data'
-        elif c_clean in ['congregacao', 'cong']: mapa[col] = 'Congregacao'
-        elif c_clean in ['cidade']: mapa[col] = 'Cidade'
-        elif c_clean in ['contato', 'telefone']: mapa[col] = 'Contato'
-    
-    # Renomeia e retorna
-    return df.rename(columns=mapa)
-
-def carregar():
+def carregar_dados():
     client = conectar()
-    try:
-        sh = client.open(NOME_PLANILHA)
-    except:
-        st.error(f"❌ Não encontrei a planilha '{NOME_PLANILHA}'. Verifique o nome no Google Drive."); st.stop()
+    sh = client.open(NOME_PLANILHA)
 
-    # --- CARREGA AS ABAS QUE VOCÊ PEDIU ---
-    # 1. ORADORES
-    try: ws_oradores = sh.worksheet("oradores")
-    except: ws_oradores = sh.add_worksheet("oradores", 100, 5) # Cria se não existir
-    
-    # 2. AGENDA (Programação)
-    try: ws_agenda = sh.worksheet("agenda")
-    except: ws_agenda = sh.add_worksheet("agenda", 100, 5)
-
-    # 3. TEMAS
-    try: ws_temas = sh.worksheet("temas")
-    except: st.error("Aba 'temas' não existe."); st.stop()
+    # Abas
+    ws_oradores = sh.worksheet("oradores")
+    ws_agenda = sh.worksheet("agenda")
+    ws_temas = sh.worksheet("temas")
+    ws_solic = sh.worksheet("solicitacoes")
 
     # DataFrames
     df_oradores = pd.DataFrame(ws_oradores.get_all_records())
     df_agenda = pd.DataFrame(ws_agenda.get_all_records())
     df_temas = pd.DataFrame(ws_temas.get_all_records())
 
-    # Normaliza colunas (para o código entender 'titulo' como 'Tema')
-    df_oradores = normalizar_df(df_oradores)
-    df_agenda = normalizar_df(df_agenda)
-    df_temas = normalizar_df(df_temas)
+    # Normalização básica de nomes de colunas (Minúsculo para garantir)
+    df_oradores.columns = [c.lower() for c in df_oradores.columns]
+    df_temas.columns = [c.lower() for c in df_temas.columns]
     
-    # Garante coluna Nome na agenda p/ não dar erro de visualização
-    if 'Nome' in df_agenda.columns: df_agenda.rename(columns={'Nome': 'Orador'}, inplace=True)
-    if 'Orador' not in df_agenda.columns: df_agenda['Orador'] = ""
+    # Garante colunas mínimas para não quebrar se estiver vazio
+    required_oradores = ['nome', 'cargo', 'congregacao', 'cidade', 'temas_ids', 'contato']
+    for col in required_oradores:
+        if col not in df_oradores.columns:
+            df_oradores[col] = "" # Cria vazia se não existir na planilha
 
-    return ws_oradores, ws_agenda, df_oradores, df_agenda, df_temas
+    return ws_agenda, ws_solic, df_oradores, df_agenda, df_temas
 
 # ==============================================================================
-# 3. INTERFACE
+# 3. INTERFACE PRINCIPAL
 # ==============================================================================
 def main():
     try:
-        ws_oradores, ws_agenda, df_oradores, df_agenda, df_temas = carregar()
+        ws_agenda, ws_solic, df_oradores, df_agenda, df_temas = carregar_dados()
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}"); st.stop()
+        st.error(f"Erro ao carregar dados: {e}")
+        st.stop()
 
-    st.sidebar.title("Menu")
-    menu = st.sidebar.radio("Ir para:", ["📅 Quadro de Discursos", "🔒 Área do Coordenador"])
+    # --- BARRA LATERAL (FILTROS E LOCAL) ---
+    st.sidebar.header("📍 Localização")
+    
+    # 1. Filtros de Busca
+    meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    mes_selecionado = st.sidebar.selectbox("Mês Pretendido", meses)
+    
+    cidade_digitada = st.sidebar.text_input("Cidade", placeholder="Ex: Votorantim")
+    congregacao_digitada = st.sidebar.text_input("Congregação", placeholder="Ex: Parque Jataí")
 
-    # --- PÚBLICO ---
-    if menu == "📅 Quadro de Discursos":
-        st.title("📅 Quadro de Discursos")
+    st.sidebar.markdown("---")
+    
+    # 2. Botão Street View (Dinâmico)
+    if cidade_digitada and congregacao_digitada:
+        query_map = f"Salão do Reino das Testemunhas de Jeová {congregacao_digitada} {cidade_digitada}"
+        link_map = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(query_map)}"
         
-        # Filtros
-        c1, c2, c3 = st.columns(3)
-        meses = {1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"}
-        
-        filtro_mes = c1.selectbox("Mês", ["Todos"] + list(meses.values()))
-        
-        # Cidades (Se existir a coluna Cidade na agenda)
-        cidades = df_agenda['Cidade'].unique() if 'Cidade' in df_agenda.columns else []
-        filtro_cidade = c2.selectbox("Cidade", ["Todas"] + list(cidades))
-        
-        filtro_cong = c3.text_input("Congregação")
-        st.markdown("---")
+        st.sidebar.markdown(f"""
+            <a href="{link_map}" target="_blank">
+                <button style="
+                    background-color: #34A853; color: white; width: 100%; 
+                    padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                    🗺️ Ver Salão no Mapa
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
+    else:
+        st.sidebar.info("Digite Cidade e Congregação para ver o mapa.")
 
-        if df_agenda.empty:
-            st.info("Nenhuma programação na aba 'agenda'.")
+    # --- ÁREA PRINCIPAL (CARDS) ---
+    st.title(f"Oradores Disponíveis")
+    if congregacao_digitada:
+        st.caption(f"Buscando em: {congregacao_digitada} - {cidade_digitada}")
+    
+    # Lógica de Filtro dos Cards
+    if not df_oradores.empty:
+        df_filtrado = df_oradores.copy()
+        
+        # Filtra por Cidade (se digitado)
+        if cidade_digitada:
+            df_filtrado = df_filtrado[df_filtrado['cidade'].astype(str).str.contains(cidade_digitada, case=False)]
+        
+        # Filtra por Congregação (se digitado)
+        if congregacao_digitada:
+            df_filtrado = df_filtrado[df_filtrado['congregacao'].astype(str).str.contains(congregacao_digitada, case=False)]
+        
+        # MOSTRAR CARDS
+        if df_filtrado.empty:
+            if congregacao_digitada:
+                st.warning("Nenhum orador encontrado nesta congregação. Verifique se a coluna 'congregacao' está preenchida na planilha.")
+            else:
+                st.info("Digite uma congregação ao lado para buscar oradores.")
         else:
-            df_view = df_agenda.copy()
-            # Tenta converter data
-            df_view['Data_Dt'] = pd.to_datetime(df_view['Data'], format='%d/%m/%Y', errors='coerce')
+            # Layout em Grid (3 colunas)
+            cols = st.columns(3)
             
-            # Filtra
-            if filtro_mes != "Todos":
-                num_mes = [k for k, v in meses.items() if v == filtro_mes][0]
-                df_view = df_view[df_view['Data_Dt'].dt.month == num_mes]
-            if filtro_cidade != "Todas":
-                df_view = df_view[df_view['Cidade'] == filtro_cidade]
-            if filtro_cong:
-                # Verifica se existe coluna Congregacao na agenda antes de filtrar
-                if 'Congregacao' in df_view.columns:
-                    df_view = df_view[df_view['Congregacao'].astype(str).str.contains(filtro_cong, case=False)]
-
-            # Exibe (Colunas dinâmicas para não quebrar)
-            cols = [c for c in ['Data', 'Orador', 'Tema', 'Congregacao', 'Cidade'] if c in df_view.columns]
-            st.dataframe(df_view.sort_values('Data_Dt', ascending=False)[cols], use_container_width=True, hide_index=True)
-
-    # --- COORDENADOR ---
-    elif menu == "🔒 Área do Coordenador":
-        st.title(f"Painel - {MINHA_CONGREGACAO}")
-        if st.sidebar.text_input("Senha", type="password") == "1234":
-            
-            tab1, tab2 = st.tabs(["➕ Agendar", "👥 Meus Oradores"])
-            
-            # 1. Agendar
-            with tab1:
-                with st.form("agenda"):
-                    c1, c2 = st.columns(2)
-                    data_sel = c1.date_input("Data", date.today())
-                    orador_sel = c1.selectbox("Orador", df_oradores['Nome'].unique())
+            for index, row in df_filtrado.iterrows():
+                # Distribui os cards nas colunas
+                with cols[index % 3]:
+                    # Início do Card Visual
+                    st.markdown(f"""
+                    <div class="orador-card">
+                        <div class="orador-nome">{row['nome']}</div>
+                        <div class="orador-cargo">{row['cargo']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Monta lista de temas (Numero - Titulo)
-                    lista_temas = []
-                    if 'Numero' in df_temas.columns and 'Tema' in df_temas.columns:
-                        lista_temas = [f"{r['Numero']} - {r['Tema']}" for i, r in df_temas.iterrows()]
-                    else:
-                        lista_temas = df_temas.iloc[:, 0].astype(str).tolist() # Fallback
-                        
-                    tema_sel = c2.selectbox("Tema", lista_temas)
-                    
-                    if st.form_submit_button("Salvar na Agenda"):
-                        # Verifica repetição
-                        msg_aviso = ""
-                        if not df_agenda.empty and 'Tema' in df_agenda.columns:
-                            # Pega numero do tema
-                            t_num = tema_sel.split(' - ')[0]
-                            check = df_agenda[
-                                (df_agenda['Orador'] == orador_sel) & 
-                                (df_agenda['Tema'].astype(str).str.startswith(t_num))
-                            ]
-                            if not check.empty:
-                                msg_aviso = f"⚠️ Orador já fez esse tema em: {check['Data'].values[0]}"
+                    # Botão para abrir agendamento (Expander dentro da coluna)
+                    with st.expander(f"📅 Agendar com {row['nome'].split()[0]}"):
+                        with st.form(key=f"form_{index}"):
+                            data_escolhida = st.date_input("Data", date.today())
+                            
+                            # Lógica Inteligente de Temas (Cruza IDs do orador com a lista de temas)
+                            temas_do_orador = []
+                            ids_raw = str(row['temas_ids']).replace(" ", "").split(",")
+                            
+                            # Filtra df_temas para pegar apenas os IDs que o orador faz
+                            # Assumindo que temas.csv tem colunas: numero, titulo
+                            for t_id in ids_raw:
+                                tema_match = df_temas[df_temas['numero'].astype(str) == t_id]
+                                if not tema_match.empty:
+                                    titulo = tema_match.iloc[0]['titulo']
+                                    temas_do_orador.append(f"{t_id} - {titulo}")
+                            
+                            # Se não achou temas pelos IDs, mostra todos (fallback)
+                            if not temas_do_orador:
+                                temas_do_orador = [f"{r['numero']} - {r['titulo']}" for i, r in df_temas.iterrows()]
 
-                        # Salva na aba 'agenda'
-                        # Colunas: Data, Orador, Tema, Congregação, Cidade
-                        # (O gspread adiciona na ordem, se sua planilha tiver colunas diferentes, ele põe nas próximas livres)
-                        ws_agenda.append_row([
-                            data_sel.strftime("%d/%m/%Y"),
-                            orador_sel,
-                            tema_sel,
-                            MINHA_CONGREGACAO,
-                            MINHA_CIDADE
-                        ])
-                        
-                        st.success("Agendado!")
-                        if msg_aviso: st.warning(msg_aviso)
-                        time.sleep(1); st.rerun()
+                            tema_selecionado = st.selectbox("Escolha o Tema", temas_do_orador)
+                            
+                            submitted = st.form_submit_button("Confirmar Agendamento")
+                            
+                            if submitted:
+                                # Salva na aba AGENDA
+                                # Formato: id(auto), data, orador, cargo, tema_numero, tema_titulo
+                                t_num = tema_selecionado.split(' - ')[0]
+                                t_tit = tema_selecionado.split(' - ')[1] if ' - ' in tema_selecionado else tema_selecionado
+                                
+                                ws_agenda.append_row([
+                                    "", # ID (vazio ou gerar auto)
+                                    data_escolhida.strftime("%d/%m/%Y"),
+                                    row['nome'],
+                                    row['cargo'],
+                                    t_num,
+                                    t_tit,
+                                    congregacao_digitada # Salva onde foi o discurso
+                                ])
+                                st.toast(f"Agendado! {row['nome']} dia {data_escolhida.strftime('%d/%m')}", icon="✅")
+                                time.sleep(1)
+                                st.rerun()
 
-            # 2. Oradores
-            with tab2:
-                # Tenta filtrar pela congregação SE existir a coluna
-                if 'Congregacao' in df_oradores.columns:
-                    df_local = df_oradores[df_oradores['Congregacao'].astype(str).str.upper() == MINHA_CONGREGACAO]
-                else:
-                    df_local = df_oradores # Se não tiver coluna, mostra todos
-                    st.info("Sua aba 'oradores' não tem coluna 'Congregacao'. Mostrando todos.")
-
-                st.dataframe(df_local, use_container_width=True)
-                
-                with st.expander("Cadastrar Novo Orador"):
-                    with st.form("add_orador"):
-                        nn = st.text_input("Nome")
-                        nc = st.text_input("Contato")
-                        if st.form_submit_button("Salvar"):
-                            # Salva: Nome, Cargo(vazio), Temas(vazio), Congregacao, Cidade, Contato
-                            # Ajuste conforme suas colunas. Vou mandar o básico que funciona.
-                            ws_oradores.append_row([nn, "Publicador", "", MINHA_CONGREGACAO, MINHA_CIDADE, nc])
-                            st.success("Salvo!"); time.sleep(1); st.rerun()
+                    # Botão de Enviar Solicitação (WhatsApp)
+                    if row['contato']:
+                        # Mensagem pré-formatada
+                        msg_wpp = f"Olá {row['nome']}, gostaríamos de convidar você para fazer um discurso na congregação {congregacao_digitada}."
+                        link_wpp = f"https://wa.me/55{str(row['contato']).replace(' ','').replace('-','')}?text={urllib.parse.quote(msg_wpp)}"
+                        st.markdown(f"""
+                            <a href="{link_wpp}" target="_blank" style="text-decoration: none;">
+                                <div style="text-align: center; margin-top: 5px; color: #25D366; font-weight: bold; border: 1px solid #25D366; border-radius: 5px; padding: 5px;">
+                                    💬 Enviar Solicitação
+                                </div>
+                            </a>
+                        """, unsafe_allow_html=True)
+    else:
+        st.info("Carregando banco de dados...")
 
 if __name__ == "__main__":
     main()

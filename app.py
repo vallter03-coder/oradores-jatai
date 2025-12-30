@@ -50,21 +50,49 @@ def carregar_dados():
                 except: pass
             oradores_fmt.append({"nome": row['nome'], "cargo": row['cargo'], "temas_ids": ids})
 
-        # Temas e Solicitações
+        # Temas, Solicitações e HISTÓRICO LOCAL
         temas = sh.worksheet("temas").get_all_records()
+        
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
         except: solicitacoes = []
+        
+        # Tenta carregar aba de histórico, se não existir, cria vazia na memória
+        try: historico = sh.worksheet("historico").get_all_records()
+        except: historico = []
 
-        return {"oradores": oradores_fmt, "temas": temas, "solicitacoes": solicitacoes}
+        return {
+            "oradores": oradores_fmt, 
+            "temas": temas, 
+            "solicitacoes": solicitacoes,
+            "historico": historico
+        }
     except Exception as e:
         st.error(f"Erro Conexão: {e}")
-        return {"oradores": [], "temas": [], "solicitacoes": []}
+        return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
 def salvar_dados(dados):
+    # Salva JSON na célula A1 da primeira aba (Backup Rápido)
     try:
         client = conectar_gsheets()
         sheet = client.open(NOME_PLANILHA_GOOGLE).sheet1
         sheet.update_acell('A1', json.dumps(dados, ensure_ascii=False))
+        
+        # Tenta salvar o HISTÓRICO na aba específica para persistir melhor
+        try:
+            sh = client.open(NOME_PLANILHA_GOOGLE)
+            try: ws_hist = sh.worksheet("historico")
+            except: ws_hist = sh.add_worksheet("historico", 1000, 3)
+            
+            # Reescreve histórico (método simples)
+            if dados['historico']:
+                # Headers
+                ws_hist.clear()
+                ws_hist.append_row(["tema_numero", "tema_titulo", "data"])
+                # Rows
+                rows = [[h['tema_numero'], h['tema_titulo'], h['data']] for h in dados['historico']]
+                ws_hist.append_rows(rows)
+        except: pass
+            
     except: pass
 
 # Sessão
@@ -88,6 +116,11 @@ st.markdown("""
     
     /* Card Admin */
     .admin-card { background: #E3F2FD; padding: 10px; border-radius: 5px; border-left: 5px solid #004E8C; margin-bottom: 10px; }
+    
+    /* Box de Alerta do Histórico */
+    .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
+    .hist-ok { background-color: #D4EDDA; color: #155724; border: 1px solid #C3E6CB; }
+    .hist-warning { background-color: #FFF3CD; color: #856404; border: 1px solid #FFEEBA; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -191,19 +224,17 @@ def area_publica():
 # 5. ÁREA ADMIN (COORDINADOR)
 # ==========================================
 def area_admin():
-    # MARCADOR DE VERSÃO PARA VOCÊ SABER QUE ATUALIZOU
-    st.title("🔒 Painel do Coordenador (V 9.0)")
+    st.title("🔒 Painel do Coordenador")
     
-    tab1, tab2 = st.tabs(["📩 Pedidos (WhatsApp Completo)", "👥 Gerenciar Oradores"])
+    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico da Congregação", "👥 Oradores"])
     
-    # --- ABA PEDIDOS ---
+    # --- ABA 1: PEDIDOS ---
     with tab1:
         if not db['solicitacoes']: 
             st.info("Nenhum pedido na lista.")
         else:
             for solic in reversed(db['solicitacoes']):
                 with st.expander(f"📍 {solic['solicitante']} - {solic['mes']}"):
-                    # GERAÇÃO DO TEXTO DO WHATSAPP
                     txt_zap = f"*CONFIRMAÇÃO DE DISCURSOS*\n"
                     txt_zap += f"🏛️ *{solic['solicitante']}*\n"
                     txt_zap += f"📅 Ref: {solic['mes']}\n"
@@ -212,8 +243,6 @@ def area_admin():
                     for item in solic['itens']:
                         dt_fmt = datetime.strptime(item['data'], "%Y-%m-%d").strftime("%d/%m")
                         icone = ICONES.get(item['cargo'], "👤")
-                        
-                        # Visual no Site
                         st.markdown(f"""
                         <div class="admin-card">
                             <div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div>
@@ -221,8 +250,6 @@ def area_admin():
                             <div style="color:#444;">📖 {item['tema']}</div>
                         </div>
                         """, unsafe_allow_html=True)
-                        
-                        # Texto Zap
                         txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n"
                         txt_zap += f"📖 {item['tema']}\n\n"
                     
@@ -232,76 +259,144 @@ def area_admin():
                     st.divider()
                     c1, c2 = st.columns([3, 1])
                     c1.text_area("Copiar Mensagem:", txt_zap, height=250)
-                    if c2.button("Excluir Pedido", key=f"del_{solic['id']}", type="primary"):
+                    if c2.button("Excluir", key=f"del_{solic['id']}", type="primary"):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
                         salvar_dados(db)
                         st.rerun()
 
-    # --- ABA ORADORES ---
+    # --- ABA 2: HISTÓRICO (NOVO!) ---
     with tab2:
-        st.subheader("Cadastro de Oradores")
+        st.subheader("📜 Histórico de Discursos Locais")
+        st.markdown("Controle o que já foi feito na nossa congregação.")
         
-        # 1. MOSTRAR TABELA
+        col_pesquisa, col_registro = st.columns([1, 1.5], gap="large")
+        
+        # --- COLUNA ESQUERDA: PESQUISA RÁPIDA ---
+        with col_pesquisa:
+            st.info("🔍 **Pesquisar Tema**")
+            num_busca = st.number_input("Digite o Nº do Tema:", min_value=1, step=1)
+            
+            if num_busca:
+                # Filtra histórico
+                encontrados = [h for h in db['historico'] if int(h['tema_numero']) == num_busca]
+                if encontrados:
+                    # Pega o mais recente
+                    recente = max(encontrados, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
+                    dt_rec = datetime.strptime(recente['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    
+                    st.markdown(f"""
+                    <div class="hist-alert hist-warning">
+                        ⚠️ ÚLTIMA VEZ: {dt_rec}<br>
+                        <small>{recente['tema_titulo']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div class="hist-alert hist-ok">
+                        ✅ Nunca registrado no sistema.
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # --- COLUNA DIREITA: REGISTRAR NOVO ---
+        with col_registro:
+            with st.container(border=True):
+                st.write("#### ➕ Registrar Realização")
+                
+                opcoes_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+                tema_hist = st.selectbox("Selecione o Tema:", opcoes_temas)
+                data_hist = st.date_input("Data Realizada:", format="DD/MM/YYYY")
+                
+                if st.button("💾 Salvar no Histórico", use_container_width=True):
+                    # 1. Pega dados
+                    num_t = int(tema_hist.split(' - ')[0])
+                    tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
+                    data_str = data_hist.strftime("%Y-%m-%d")
+                    
+                    # 2. Verifica se JÁ TINHA antes de salvar (para o aviso)
+                    anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
+                    aviso_msg = ""
+                    if anteriores:
+                        rec = max(anteriores, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
+                        d_rec = datetime.strptime(rec['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                        aviso_msg = f"Atenção: A última vez foi em {d_rec}."
+                    
+                    # 3. Salva
+                    db['historico'].append({
+                        "tema_numero": num_t,
+                        "tema_titulo": tit_t,
+                        "data": data_str
+                    })
+                    salvar_dados(db)
+                    
+                    # 4. Feedback
+                    st.success("Registro salvo!")
+                    if aviso_msg:
+                        st.warning(f"⚠️ {aviso_msg}")
+                    else:
+                        st.info("ℹ️ Primeira vez registrando este tema.")
+                    
+                    # Espera um pouco pra ler e recarrega
+                    # st.rerun() (Opcional: tirei pra mensagem ficar na tela)
+
+        # TABELA COMPLETA EMBAIXO
+        st.divider()
+        with st.expander("Ver Tabela Completa do Histórico"):
+            if db['historico']:
+                df_hist = pd.DataFrame(db['historico'])
+                df_hist['data'] = pd.to_datetime(df_hist['data'])
+                df_hist = df_hist.sort_values(by='data', ascending=False)
+                st.dataframe(df_hist, use_container_width=True)
+            else:
+                st.caption("Histórico vazio.")
+
+    # --- ABA 3: ORADORES ---
+    with tab3:
+        st.subheader("Cadastro de Oradores")
         if db['oradores']:
             df = pd.DataFrame(db['oradores'])
-            # Formata a coluna temas para não ficar gigante visualmente
             df['temas_ids'] = df['temas_ids'].apply(lambda x: str(x).replace('[','').replace(']',''))
             st.dataframe(df, use_container_width=True)
-        else:
-            st.warning("Nenhum orador cadastrado.")
+        else: st.warning("Nenhum orador.")
 
         st.divider()
         col_add, col_edit = st.columns(2)
 
-        # 2. ADICIONAR NOVO
         with col_add:
             with st.container(border=True):
                 st.write("#### ➕ Adicionar Novo")
                 with st.form("new_orador"):
                     n_nome = st.text_input("Nome")
                     n_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
-                    # Pega todos os temas para selecionar
                     all_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
                     n_temas = st.multiselect("Temas Habilitados", all_temas)
-                    
                     if st.form_submit_button("Salvar"):
                         ids = [int(t.split(' - ')[0]) for t in n_temas]
                         db['oradores'].append({"nome": n_nome, "cargo": n_cargo, "temas_ids": ids})
                         salvar_dados(db)
                         st.success("Adicionado!"); st.rerun()
 
-        # 3. EDITAR / EXCLUIR
         with col_edit:
             with st.container(border=True):
                 st.write("#### ✏️ Editar / Excluir")
                 if db['oradores']:
                     sel_nome = st.selectbox("Selecione:", [o['nome'] for o in db['oradores']])
-                    # Acha o índice
                     idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel_nome)
                     dados = db['oradores'][idx]
-                    
                     with st.form("edit_orador"):
                         e_nome = st.text_input("Nome", value=dados['nome'])
-                        e_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=["Ancião", "Servo Ministerial", "Outro"].index(dados['cargo']))
-                        
-                        # Temas Atuais
-                        all_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
-                        defaults = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dados['temas_ids']]
-                        e_temas = st.multiselect("Temas", all_temas, default=defaults)
-                        
+                        idx_c = ["Ancião", "Servo Ministerial", "Outro"].index(dados['cargo'])
+                        e_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=idx_c)
+                        all_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+                        def_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dados['temas_ids']]
+                        e_temas = st.multiselect("Temas", all_t, default=def_t)
                         c_up, c_del = st.columns(2)
                         if c_up.form_submit_button("Atualizar"):
                             ids = [int(t.split(' - ')[0]) for t in e_temas]
                             db['oradores'][idx] = {"nome": e_nome, "cargo": e_cargo, "temas_ids": ids}
                             salvar_dados(db)
                             st.success("Salvo!"); st.rerun()
-                        
                         if c_del.form_submit_button("Excluir", type="primary"):
-                            db['oradores'].pop(idx)
-                            salvar_dados(db)
-                            st.rerun()
-                else:
-                    st.info("Nada para editar.")
+                            db['oradores'].pop(idx); salvar_dados(db); st.rerun()
 
 # ==========================================
 # 6. RODAPÉ / LOGIN

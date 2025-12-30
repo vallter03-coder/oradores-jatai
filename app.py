@@ -28,7 +28,7 @@ st.set_page_config(page_title="Solicitação de Oradores", layout="wide", page_i
 # FUNÇÕES DE BANCO DE DADOS (GOOGLE SHEETS)
 # ==========================================
 def conectar_gsheets():
-    # Pega as credenciais dos "Segredos" do Streamlit
+    """Conecta ao Google Sheets usando st.secrets"""
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = dict(st.secrets["gcp_service_account"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
@@ -36,30 +36,63 @@ def conectar_gsheets():
     return client
 
 def carregar_dados():
-    estrutura_padrao = {
-        "oradores": [], "temas": [], "historico_local": [], "solicitacoes": []
-    }
-    
+    """Lê todas as abas da planilha e formata para o app"""
     try:
         client = conectar_gsheets()
-        sheet = client.open(NOME_PLANILHA_GOOGLE).sheet1
-        # Lemos tudo da célula A1
-        conteudo = sheet.acell('A1').value
+        sh = client.open(NOME_PLANILHA_GOOGLE) # Usa a variável que você definiu lá em cima
         
-        if not conteudo:
-            return estrutura_padrao
+        # --- 1. Carregar Oradores ---
+        ws_oradores = sh.worksheet("oradores")
+        raw_oradores = ws_oradores.get_all_records()
+        oradores_formatados = []
         
-        dados = json.loads(conteudo)
-        
-        # Garante estrutura
-        if "solicitacoes" not in dados: dados["solicitacoes"] = []
-        if "historico_local" not in dados: dados["historico_local"] = []
-        return dados
-        
+        for row in raw_oradores:
+            # Converte a string "4, 22, 30" da planilha para lista [4, 22, 30]
+            ids_str = str(row.get('temas_ids', ''))
+            if ids_str and ids_str.strip():
+                try:
+                    # Separa por vírgula e converte para inteiro
+                    ids = [int(x.strip()) for x in ids_str.split(',') if x.strip().isdigit()]
+                except:
+                    ids = []
+            else:
+                ids = []
+
+            oradores_formatados.append({
+                "nome": row['nome'],
+                "cargo": row['cargo'],
+                "temas_ids": ids
+            })
+
+        # --- 2. Carregar Agenda ---
+        ws_agenda = sh.worksheet("agenda")
+        # Garante que 'tema_numero' seja lido como número, não texto
+        agenda = ws_agenda.get_all_records()
+        for item in agenda:
+            # Conversão de segurança caso o Google Sheets mande como texto
+            if 'tema_numero' in item and str(item['tema_numero']).isdigit():
+                item['tema_numero'] = int(item['tema_numero'])
+
+        # --- 3. Carregar Temas ---
+        ws_temas = sh.worksheet("temas")
+        temas = ws_temas.get_all_records()
+
+        # --- 4. Carregar Solicitações ---
+        ws_solic = sh.worksheet("solicitacoes")
+        solicitacoes = ws_solic.get_all_records()
+
+        return {
+            "oradores": oradores_formatados,
+            "agenda": agenda,
+            "temas": temas,
+            "solicitacoes": solicitacoes,
+            "historico_local": [] # Deixe vazio se não criou a aba
+        }
+
     except Exception as e:
-        # Se der erro (ex: planilha vazia ou offline), retorna padrão
-        # st.error(f"Erro ao conectar: {e}") # Descomente para debug
-        return estrutura_padrao
+        st.error(f"Erro ao conectar na planilha: {e}")
+        # Retorna estrutura vazia para não quebrar o site totalmente
+        return {"oradores": [], "agenda": [], "temas": [], "solicitacoes": [], "historico_local": []}
 
 def salvar_dados(dados):
     try:

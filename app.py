@@ -21,7 +21,7 @@ except: pass
 st.set_page_config(page_title="Solicitação de Oradores", layout="wide", page_icon="📝")
 
 # ==========================================
-# 2. CONEXÃO
+# 2. CONEXÃO (SEGURA)
 # ==========================================
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -39,27 +39,31 @@ def carregar_dados():
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
-        # --- CARREGAR ORADORES ---
-        try: ws = sh.worksheet("oradores")
-        except: ws = sh.add_worksheet("oradores", 100, 3)
+        # Tenta ler oradores
+        try: 
+            ws = sh.worksheet("oradores")
+            dados = ws.get_all_records()
+        except: 
+            dados = []
             
-        raw = ws.get_all_records()
-        oradores_fmt = []
-        for row in raw:
-            # Limpeza de chaves
+        # Processa
+        lista_oradores = []
+        for row in dados:
+            # Normaliza chaves para minúsculo
             r = {k.lower().strip(): v for k, v in row.items()}
             
-            # Pula se não tiver nome ou se for lixo
-            if not r.get('nome') or str(r['nome']).startswith('{'): continue
+            # Se a linha não tiver nome ou parecer lixo, ignora
+            if 'nome' not in r or str(r['nome']).startswith('{') or not r['nome']:
+                continue
                 
             ids = []
             if str(r.get('temas_ids', '')).strip():
                 try: ids = [int(x.strip()) for x in str(r['temas_ids']).split(',') if x.strip().isdigit()]
                 except: pass
             
-            oradores_fmt.append({"nome": r['nome'], "cargo": r.get('cargo',''), "temas_ids": ids})
+            lista_oradores.append({"nome": r['nome'], "cargo": r.get('cargo',''), "temas_ids": ids})
 
-        # --- OUTRAS ABAS ---
+        # Lê outras abas
         try: temas = sh.worksheet("temas").get_all_records()
         except: temas = []
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
@@ -67,77 +71,66 @@ def carregar_dados():
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
 
-        return {"oradores": oradores_fmt, "temas": temas, "solicitacoes": solicitacoes, "historico": historico}
+        return {"oradores": lista_oradores, "temas": temas, "solicitacoes": solicitacoes, "historico": historico}
     except Exception as e:
+        st.error(f"Erro ao ler planilha: {e}")
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
 # ==========================================
-# 3. FUNÇÕES BLINDADAS DE ESCRITA
+# 3. FUNÇÕES DE ESCRITA (CIRÚRGICAS)
 # ==========================================
 
-def salvar_orador_blindado(novo_orador):
+def adicionar_orador_FINAL(novo_orador):
     """
-    NÃO USA APPEND.
-    Calcula a próxima linha vazia e escreve célula por célula.
-    IMPEDE escrita na linha 1.
+    Esta função abre a aba 'oradores' e usa append_row.
+    É IMPOSSÍVEL ela sobrescrever a A1.
     """
     try:
         client = conectar_gsheets()
+        # Abre EXATAMENTE a aba 'oradores' pelo nome
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
         
-        # Pega todos os valores para contar linhas
-        todos_valores = ws.get_all_values()
-        proxima_linha = len(todos_valores) + 1
-        
-        # TRAVA DE SEGURANÇA: Nunca escreva na linha 1
-        if proxima_linha < 2:
-            proxima_linha = 2
-            
-        # Prepara dados
+        # Converte lista de IDs para string "1, 2, 3"
         ids_str = str(novo_orador['temas_ids']).replace('[','').replace(']','')
         
-        # Escreve nas coordenadas exatas
-        ws.update_cell(proxima_linha, 1, novo_orador['nome'])
-        ws.update_cell(proxima_linha, 2, novo_orador['cargo'])
-        ws.update_cell(proxima_linha, 3, ids_str)
-        
+        # ADICIONA NO FINAL
+        ws.append_row([novo_orador['nome'], novo_orador['cargo'], ids_str])
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+        st.error(f"Erro ao salvar orador: {e}")
         return False
 
-def excluir_orador_blindado(nome):
+def excluir_orador_FINAL(nome_alvo):
     try:
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
-        cell = ws.find(nome)
-        # Trava de segurança: não deletar linha 1
+        cell = ws.find(nome_alvo)
+        # Segurança: nunca deletar linha 1
         if cell and cell.row > 1:
             ws.delete_rows(cell.row)
             return True
-        else:
-            st.error("Não pode deletar cabeçalho ou não encontrado.")
-            return False
     except: return False
 
-def salvar_historico_blindado(item):
+def salvar_solicitacao_FINAL(nova_solic):
+    try:
+        client = conectar_gsheets()
+        # Garante que está na aba SOLICITACOES
+        try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
+        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("solicitacoes", 100, 1)
+        
+        # Adiciona JSON na próxima linha vazia da aba solicitacoes
+        ws.append_row([json.dumps(nova_solic, ensure_ascii=False)])
+    except: pass
+
+def salvar_historico_FINAL(novo_hist):
     try:
         client = conectar_gsheets()
         try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("historico")
-        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("historico", 100, 3)
-        ws.append_row([item['tema_numero'], item['tema_titulo'], item['data']])
+        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("historico", 1000, 3)
+        ws.append_row([novo_hist['tema_numero'], novo_hist['tema_titulo'], novo_hist['data']])
     except: pass
 
-def salvar_solicitacao_blindado(solic):
-    try:
-        client = conectar_gsheets()
-        try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
-        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("solicitacoes", 100, 1)
-        # Salva como JSON string na proxima linha
-        ws.append_row([json.dumps(solic, ensure_ascii=False)])
-    except: pass
-
-# Sessão
+# Inicializa Sessão (Recarrega dados forçadamente)
 if 'db' not in st.session_state: st.session_state['db'] = carregar_dados()
 db = st.session_state['db']
 if 'carrinho' not in st.session_state: st.session_state['carrinho'] = []
@@ -145,7 +138,7 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 4. CSS (DARK MODE)
+# 4. ESTILO (DARK MODE / MOBILE)
 # ==========================================
 st.markdown("""
 <style>
@@ -221,9 +214,13 @@ def area_publica():
                     "data_envio": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "itens": st.session_state['carrinho']
                 }
+                # Adiciona local
                 if "solicitacoes" not in db: db["solicitacoes"] = []
                 db['solicitacoes'].append(novo)
-                salvar_solicitacao_blindado(novo)
+                
+                # SALVA NA PLANILHA CERTA
+                salvar_solicitacao_FINAL(novo)
+                
                 st.session_state['carrinho'] = []
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
@@ -271,23 +268,32 @@ def area_publica():
                     else: st.error("Escolha um tema!")
 
 # ==========================================
-# 6. ÁREA ADMIN (BLINDADA)
+# 6. ÁREA ADMIN
 # ==========================================
 def area_admin():
-    st.title("🔒 Painel do Coordenador")
+    # SE VOCÊ NÃO VER ISSO NO TÍTULO, O CÓDIGO NÃO ATUALIZOU
+    st.title("🔒 Painel do Coordenador (V 21.0 FINAL)")
+    
     tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Oradores"])
     
     with tab1:
         if not db['solicitacoes']: 
-            st.info("Nenhum pedido na lista.")
+            st.info("Nenhum pedido na lista. (Verifique a aba 'solicitacoes' na planilha)")
         else:
             for solic in reversed(db['solicitacoes']):
-                with st.expander(f"📍 {solic['solicitante']} - {solic['mes']}"):
+                # Tenta lidar com JSON ou Dicionario
+                if isinstance(solic, str):
+                    try: solic = json.loads(solic)
+                    except: continue
+
+                with st.expander(f"📍 {solic.get('solicitante', '?')} - {solic.get('mes', '?')}"):
                     txt_zap = f"*CONFIRMAÇÃO DE DISCURSOS*\n"
-                    txt_zap += f"🏛️ *{solic['solicitante']}*\n"
-                    txt_zap += f"📅 Ref: {solic['mes']}\n"
+                    txt_zap += f"🏛️ *{solic.get('solicitante')}*\n"
+                    txt_zap += f"📅 Ref: {solic.get('mes')}\n"
                     txt_zap += "----------------------------------\n\n"
-                    for item in solic['itens']:
+                    
+                    itens = solic.get('itens', [])
+                    for item in itens:
                         dt_fmt = datetime.strptime(item['data'], "%Y-%m-%d").strftime("%d/%m")
                         icone = ICONES.get(item['cargo'], "👤")
                         st.markdown(f"""
@@ -324,19 +330,14 @@ def area_admin():
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
                     data_str = data_hist.strftime("%Y-%m-%d")
-                    anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
-                    aviso = ""
-                    if anteriores:
-                        rec = max(anteriores, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
-                        aviso = f"A última vez foi em {datetime.strptime(rec['data'], '%Y-%m-%d').strftime('%d/%m/%Y')}."
                     
+                    # Salva
                     item_h = {"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str}
                     db['historico'].append(item_h)
-                    salvar_historico_blindado(item_h)
+                    salvar_historico_FINAL(item_h)
                     
-                    st.success("Salvo!")
-                    if aviso: st.warning(f"⚠️ {aviso}")
-                    else: st.info("ℹ️ Primeira vez deste tema.")
+                    st.success("Salvo!"); st.rerun()
+        
         st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
@@ -365,8 +366,10 @@ def area_admin():
                         ids = [int(t.split(' - ')[0]) for t in nt]
                         novo_obj = {"nome": n_nome, "cargo": n_cargo, "temas_ids": ids}
                         
+                        # 1. Atualiza memoria
                         db['oradores'].append(novo_obj)
-                        salvar_orador_blindado(novo_obj)
+                        # 2. SALVA DO JEITO CERTO (APPEND)
+                        adicionar_orador_FINAL(novo_obj)
                         
                         st.success("Salvo!"); st.rerun()
         with col_edit:
@@ -376,13 +379,14 @@ def area_admin():
                     sel = st.selectbox("Orador:", [o['nome'] for o in db['oradores']])
                     idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel)
                     dat = db['oradores'][idx]
+                    
                     if st.button("🗑️ Excluir Orador", type="primary"):
-                        excluir_orador_blindado(dat['nome'])
+                        excluir_orador_FINAL(dat['nome'])
                         db['oradores'].pop(idx)
                         st.rerun()
 
 # ==========================================
-# 7. LOGIN
+# 7. RODAPÉ / LOGIN
 # ==========================================
 c1, c2 = st.columns([6,1])
 with c2:

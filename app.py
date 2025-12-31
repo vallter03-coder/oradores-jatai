@@ -280,10 +280,10 @@ def area_publica():
                     else: st.error("Escolha um tema!")
 
 # ==========================================
-# 6. ÁREA ADMIN (LAYOUT CLÁSSICO RESTAURADO)
+# 6. ÁREA ADMIN (ATUALIZADA)
 # ==========================================
 def area_admin():
-    st.title("🔒 Painel de Controle")
+    st.title("🔒 Painel de Controle") # <--- ALTERADO
     tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Gerenciar Oradores"])
     
     # --- PEDIDOS ---
@@ -302,7 +302,7 @@ def area_admin():
                         icone = ICONES.get(item['cargo'], "👤")
                         st.markdown(f"""<div class="admin-card"><div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div><div>🗓️ <b>{dt_fmt}</b></div><div style="opacity:0.8">📖 {item['tema']}</div></div>""", unsafe_allow_html=True)
                         txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n📖 {item['tema']}\n\n"
-                    txt_zap += "----------------------------------\nAtt, Ricardo Rosa, Parque Jataí."
+                    txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí." # <--- ALTERADO
                     
                     st.divider()
                     st.text_area("Copiar Mensagem:", txt_zap, height=250)
@@ -352,21 +352,20 @@ def area_admin():
                 st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True)
             else: st.caption("Vazio.")
 
-    # --- ORADORES (LAYOUT RESTAURADO) ---
+    # --- ORADORES (LAYOUT CLÁSSICO) ---
     with tab3:
         st.subheader("Gerenciar Oradores")
         
-        # 1. Tabela Completa (Visualização)
+        # 1. Tabela Completa
         if db['oradores']:
             df = pd.DataFrame(db['oradores'])
-            # Mostra IDs limpos
             df['temas_ids'] = df['temas_ids'].apply(lambda x: str(x).replace('[','').replace(']',''))
             st.dataframe(df, use_container_width=True)
         else: st.warning("Nenhum orador.")
         
         st.divider()
         
-        # 2. Seletor de Ação (Abas ou Radio)
+        # 2. Seletor de Ação
         opcao = st.radio("O que deseja fazer?", ["➕ Adicionar Novo Orador", "✏️ Editar/Excluir Existente"], horizontal=True)
         
         if opcao == "➕ Adicionar Novo Orador":
@@ -440,5 +439,3 @@ if st.session_state['mostrar_login'] and not st.session_state['modo_admin']:
 
 if st.session_state['modo_admin']: area_admin()
 else: area_publica()
-
-

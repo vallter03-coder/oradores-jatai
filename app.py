@@ -49,7 +49,9 @@ def carregar_dados():
         lista_oradores = []
         for row in dados_or:
             r = {k.lower().strip(): v for k, v in row.items()}
-            if 'nome' not in r or not r['nome']: continue
+            # Validação simples para evitar linhas vazias ou lixo
+            if 'nome' not in r or not r['nome'] or str(r['nome']).startswith('{'): continue
+            
             ids = []
             if str(r.get('temas_ids', '')).strip():
                 try: ids = [int(x.strip()) for x in str(r['temas_ids']).split(',') if x.strip().isdigit()]
@@ -80,9 +82,11 @@ def carregar_dados():
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
 # ==========================================
-# 3. FUNÇÕES DE ESCRITA (SEGURAS)
+# 3. FUNÇÕES DE ESCRITA (SEGURAS - SEM CLEAR)
 # ==========================================
-def adicionar_orador_FINAL(novo_orador):
+
+def adicionar_orador_safe(novo_orador):
+    """Adiciona linha no final (Append)"""
     try:
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
@@ -91,15 +95,43 @@ def adicionar_orador_FINAL(novo_orador):
         return True
     except: return False
 
-def salvar_solicitacao_FINAL(nova_solic):
+def atualizar_orador_safe(nome_antigo, dados_novos):
+    """Atualiza células específicas da linha encontrada"""
+    try:
+        client = conectar_gsheets()
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        cell = ws.find(nome_antigo)
+        if cell:
+            ids_str = str(dados_novos['temas_ids']).replace('[','').replace(']','')
+            # Assume colunas: 1=Nome, 2=Cargo, 3=Temas_IDs
+            ws.update_cell(cell.row, 1, dados_novos['nome'])
+            ws.update_cell(cell.row, 2, dados_novos['cargo'])
+            ws.update_cell(cell.row, 3, ids_str)
+            return True
+    except: return False
+
+def excluir_orador_safe(nome):
+    """Deleta a linha encontrada"""
+    try:
+        client = conectar_gsheets()
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        cell = ws.find(nome)
+        if cell and cell.row > 1: # Protege cabeçalho
+            ws.delete_rows(cell.row)
+            return True
+    except: return False
+
+def salvar_solicitacao_safe(nova_solic):
     try:
         client = conectar_gsheets()
         try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
-        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("solicitacoes", 100, 2); ws.append_row(["id", "json"])
+        except: 
+            ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("solicitacoes", 100, 2)
+            ws.append_row(["id", "json_data"])
         ws.append_row([nova_solic['id'], json.dumps(nova_solic, ensure_ascii=False)])
     except: pass
 
-def salvar_historico_FINAL(novo_hist):
+def salvar_historico_safe(novo_hist):
     try:
         client = conectar_gsheets()
         try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("historico")
@@ -107,35 +139,13 @@ def salvar_historico_FINAL(novo_hist):
         ws.append_row([novo_hist['tema_numero'], novo_hist['tema_titulo'], novo_hist['data']])
     except: pass
 
-def excluir_pedido_FINAL(id_ped):
+def excluir_pedido_safe(id_ped):
     try:
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
         cell = ws.find(str(id_ped))
         if cell: ws.delete_rows(cell.row)
     except: pass
-
-def atualizar_orador_FINAL(nome_antigo, dados_novos):
-    """Atualiza linha específica procurando pelo nome"""
-    try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
-        cell = ws.find(nome_antigo)
-        if cell:
-            ids_str = str(dados_novos['temas_ids']).replace('[','').replace(']','')
-            ws.update_cell(cell.row, 1, dados_novos['nome'])
-            ws.update_cell(cell.row, 2, dados_novos['cargo'])
-            ws.update_cell(cell.row, 3, ids_str)
-            return True
-    except: return False
-
-def excluir_orador_FINAL(nome):
-    try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
-        cell = ws.find(nome)
-        if cell and cell.row > 1: ws.delete_rows(cell.row); return True
-    except: return False
 
 # Sessão
 if 'db' not in st.session_state: st.session_state['db'] = carregar_dados()
@@ -223,7 +233,7 @@ def area_publica():
                 }
                 if "solicitacoes" not in db: db["solicitacoes"] = []
                 db['solicitacoes'].append(novo)
-                salvar_solicitacao_FINAL(novo)
+                salvar_solicitacao_safe(novo)
                 st.session_state['carrinho'] = []
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
@@ -270,12 +280,13 @@ def area_publica():
                     else: st.error("Escolha um tema!")
 
 # ==========================================
-# 6. ÁREA ADMIN
+# 6. ÁREA ADMIN (LAYOUT CLÁSSICO RESTAURADO)
 # ==========================================
 def area_admin():
     st.title("🔒 Painel do Coordenador")
-    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Oradores"])
+    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Gerenciar Oradores"])
     
+    # --- PEDIDOS ---
     with tab1:
         if not db['solicitacoes']: 
             st.info("Nenhum pedido na lista.")
@@ -297,9 +308,10 @@ def area_admin():
                     st.text_area("Copiar Mensagem:", txt_zap, height=250)
                     if st.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary"):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
-                        excluir_pedido_FINAL(solic['id'])
+                        excluir_pedido_safe(solic['id'])
                         st.rerun()
 
+    # --- HISTÓRICO ---
     with tab2:
         st.subheader("📜 Histórico da Congregação")
         c_busca, c_reg = st.columns([1, 1.5], gap="large")
@@ -322,10 +334,16 @@ def area_admin():
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
                     data_str = data_hist.strftime("%Y-%m-%d")
+                    
                     item_h = {"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str}
                     db['historico'].append(item_h)
-                    salvar_historico_FINAL(item_h)
-                    st.success("Salvo!"); st.rerun()
+                    salvar_historico_safe(item_h)
+                    
+                    anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
+                    if len(anteriores) > 1: # Já tinha
+                        st.warning("Salvo! (Já tinha registro anterior)")
+                    else:
+                        st.success("Salvo! Primeira vez deste tema.")
         st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
@@ -334,67 +352,80 @@ def area_admin():
                 st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True)
             else: st.caption("Vazio.")
 
+    # --- ORADORES (LAYOUT RESTAURADO) ---
     with tab3:
         st.subheader("Gerenciar Oradores")
         
-        # --- TABELA COMPLETA (SEM ESCONDER TEMAS) ---
+        # 1. Tabela Completa (Visualização)
         if db['oradores']:
             df = pd.DataFrame(db['oradores'])
-            # Agora mostramos a string completa dos IDs (sem colchetes)
+            # Mostra IDs limpos
             df['temas_ids'] = df['temas_ids'].apply(lambda x: str(x).replace('[','').replace(']',''))
             st.dataframe(df, use_container_width=True)
-        else: st.warning("Vazio.")
+        else: st.warning("Nenhum orador.")
         
         st.divider()
-        col_add, col_edit = st.columns(2)
         
-        # --- ADICIONAR ---
-        with col_add:
+        # 2. Seletor de Ação (Abas ou Radio)
+        opcao = st.radio("O que deseja fazer?", ["➕ Adicionar Novo Orador", "✏️ Editar/Excluir Existente"], horizontal=True)
+        
+        if opcao == "➕ Adicionar Novo Orador":
             with st.container(border=True):
-                st.write("#### ➕ Novo Orador")
                 with st.form("new_or"):
-                    n_nome = st.text_input("Nome")
-                    n_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
-                    nt = st.multiselect("Temas", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
-                    if st.form_submit_button("Salvar"):
-                        ids = [int(t.split(' - ')[0]) for t in nt]
-                        novo_obj = {"nome": n_nome, "cargo": n_cargo, "temas_ids": ids}
-                        db['oradores'].append(novo_obj)
-                        adicionar_orador_FINAL(novo_obj)
-                        st.success("Salvo!"); st.rerun()
-        
-        # --- EDITAR / EXCLUIR ---
-        with col_edit:
-            with st.container(border=True):
-                st.write("#### ✏️ Editar")
-                if db['oradores']:
-                    sel = st.selectbox("Selecione:", [o['nome'] for o in db['oradores']])
-                    idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel)
-                    dat = db['oradores'][idx]
+                    c1, c2 = st.columns(2)
+                    n_nome = c1.text_input("Nome Completo")
+                    n_cargo = c2.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
                     
-                    with st.form("ed_or"):
-                        en = st.text_input("Nome", value=dat['nome'])
-                        ec = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=["Ancião", "Servo Ministerial", "Outro"].index(dat['cargo']))
+                    all_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+                    n_temas = st.multiselect("Selecione os Temas Habilitados:", all_temas)
+                    
+                    if st.form_submit_button("💾 Salvar Novo Orador"):
+                        ids = [int(t.split(' - ')[0]) for t in n_temas]
+                        novo_obj = {"nome": n_nome, "cargo": n_cargo, "temas_ids": ids}
                         
-                        all_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
-                        def_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dat['temas_ids']]
-                        et = st.multiselect("Temas", all_t, default=def_t)
-                        
+                        db['oradores'].append(novo_obj)
+                        adicionar_orador_safe(novo_obj)
+                        st.success("Salvo!"); time.sleep(1); st.rerun()
+
+        elif opcao == "✏️ Editar/Excluir Existente":
+            with st.container(border=True):
+                if not db['oradores']:
+                    st.info("Nada para editar.")
+                else:
+                    lista_nomes = [o['nome'] for o in db['oradores']]
+                    sel_nome = st.selectbox("Selecione o Orador para Editar:", lista_nomes)
+                    
+                    # Carrega dados
+                    idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel_nome)
+                    dados = db['oradores'][idx]
+                    
+                    with st.form("edit_form"):
                         c1, c2 = st.columns(2)
-                        if c1.form_submit_button("Atualizar"):
-                            ids = [int(t.split(' - ')[0]) for t in et]
-                            novos_dados = {"nome": en, "cargo": ec, "temas_ids": ids}
-                            db['oradores'][idx] = novos_dados
-                            atualizar_orador_FINAL(dat['nome'], novos_dados)
-                            st.success("Atualizado!"); st.rerun()
+                        e_nome = c1.text_input("Nome", value=dados['nome'])
+                        idx_c = ["Ancião", "Servo Ministerial", "Outro"].index(dados['cargo']) if dados['cargo'] in ["Ancião", "Servo Ministerial", "Outro"] else 0
+                        e_cargo = c2.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=idx_c)
+                        
+                        all_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+                        def_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dados['temas_ids']]
+                        
+                        e_temas = st.multiselect("Temas Habilitados:", all_temas, default=def_temas)
+                        
+                        col_save, col_del = st.columns([3, 1])
+                        if col_save.form_submit_button("🔄 Atualizar Dados"):
+                            ids = [int(t.split(' - ')[0]) for t in e_temas]
+                            novos_dados = {"nome": e_nome, "cargo": e_cargo, "temas_ids": ids}
                             
-                        if c2.form_submit_button("Excluir", type="primary"):
-                            excluir_orador_FINAL(dat['nome'])
+                            db['oradores'][idx] = novos_dados
+                            atualizar_orador_safe(dados['nome'], novos_dados)
+                            st.success("Dados Atualizados!"); time.sleep(1); st.rerun()
+                            
+                        if col_del.form_submit_button("🗑️ Excluir Orador", type="primary"):
+                            excluir_orador_safe(dados['nome'])
                             db['oradores'].pop(idx)
                             st.rerun()
 
 # ==========================================
-# 7. LOGIN
+# 7. RODAPÉ / LOGIN
 # ==========================================
 c1, c2 = st.columns([6,1])
 with c2:

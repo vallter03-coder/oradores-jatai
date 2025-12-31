@@ -84,11 +84,11 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 3. CSS (DARK MODE FORÇADO)
+# 3. CSS DARK MODE (MOBILE FRIENDLY)
 # ==========================================
 st.markdown("""
 <style>
-    /* SOBRESCREVENDO VARIÁVEIS DO STREAMLIT PARA FORÇAR ESCURO */
+    /* VARIAVEIS GLOBAIS FORÇADAS PARA DARK */
     :root {
         --primary-color: #5D9CEC;
         --background-color: #0E1117;
@@ -97,31 +97,31 @@ st.markdown("""
         --font: "Segoe UI", sans-serif;
     }
 
-    /* Fundo Geral */
-    .stApp {
-        background-color: #0E1117;
-        color: #FAFAFA;
-    }
+    .stApp { background-color: #0E1117; color: #FAFAFA; }
     
-    /* Sidebar */
-    [data-testid="stSidebar"] {
+    /* Box Informativo do Topo */
+    .info-box {
         background-color: #1C1E26;
-        border-right: 1px solid #333;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        font-size: 0.9em;
     }
     
-    /* Inputs (Caixas de Texto) */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input {
+    /* Botão Mapa Compacto */
+    .map-btn {
+        display: inline-block;
+        background-color: #4CAF50;
         color: white !important;
-        background-color: #262730 !important;
-        border: 1px solid #4A4A4A !important;
+        padding: 5px 15px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        margin-top: 5px;
     }
-    /* Texto dentro dos Selectbox */
-    div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] {
-        background-color: #262730 !important;
-        color: white !important;
-    }
-    
-    /* Containers (Cards) */
+
+    /* Cards */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #262730;
         border: 1px solid #4A4A4A;
@@ -129,32 +129,28 @@ st.markdown("""
         padding: 15px;
     }
     
+    /* Inputs */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input {
+        color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important;
+    }
+    div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] {
+        background-color: #262730 !important; color: white !important;
+    }
+    
     /* Botões */
     div.stButton > button {
-        background-color: #004E8C;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        font-weight: bold;
+        background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold;
     }
     
     /* Textos */
-    h1, h2, h3, h4, p, li, label {
-        color: #E0E0E0 !important;
-    }
+    h1, h2, h3, h4, p, li, label, div { color: #E0E0E0; }
     
-    /* Ajustes Específicos */
+    /* Alertas */
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
     .hist-ok { background-color: #155724; color: #d4edda; border: 1px solid #155724; }
     .hist-warning { background-color: #856404; color: #fff3cd; border: 1px solid #856404; }
     
-    .admin-card {
-        background-color: #323542;
-        padding: 10px;
-        border-left: 4px solid #5D9CEC;
-        margin-bottom: 5px;
-        border-radius: 4px;
-    }
+    .admin-card { background-color: #323542; padding: 10px; border-left: 4px solid #5D9CEC; margin-bottom: 5px; border-radius: 4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -162,17 +158,32 @@ ICONES = {"Ancião": "🛡️", "Servo Ministerial": "💼", "Outro": "👤"}
 MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
 
 # ==========================================
-# 4. ÁREA PÚBLICA
+# 4. ÁREA PÚBLICA (MOBILE OTIMIZADA)
 # ==========================================
 def area_publica():
-    st.markdown("### 👋 Solicitação de Oradores")
     
+    # --- INFO BOX (VISÍVEL NO CELULAR) ---
+    # Colocado ANTES do título para ser a primeira coisa que veem
+    st.markdown(f"""
+    <div class="info-box">
+        <div style="color: #5D9CEC; font-weight: bold; font-size: 1.1em; margin-bottom: 5px;">📍 Salão do Reino</div>
+        <div>{ENDERECO_SALAO}</div>
+        <div style="margin-top: 8px;">
+            <span style="margin-right: 15px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</span>
+            <a href="{LINK_MAPS}" target="_blank" class="map-btn">🗺️ Abrir Mapa</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.title("Solicitação de Oradores")
+
+    # --- IDENTIFICAÇÃO ---
     with st.container(border=True):
         st.caption("📍 **Identificação da Congregação**")
-        c1, c2, c3 = st.columns([1.5, 2, 1])
+        c1, c2 = st.columns(2)
         cidade = c1.text_input("Sua Cidade:")
         congregacao = c2.text_input("Sua Congregação:")
-        mes_ref = c3.selectbox("Mês:", ["Selecione..."] + list(MAPA_MESES.keys()))
+        mes_ref = st.selectbox("Mês Pretendido:", ["Selecione..."] + list(MAPA_MESES.keys()))
 
     if not cidade or not congregacao or mes_ref == "Selecione...":
         st.info("👆 Preencha os dados acima para ver os oradores.")
@@ -184,12 +195,44 @@ def area_publica():
     ano = hoje.year + 1 if mes_num < hoje.month else hoje.year
     data_padrao = date(ano, mes_num, 1)
 
-    st.divider()
+    # --- ÁREA DO CARRINHO (PARA APARECER NO CELULAR) ---
+    # Se tiver itens, mostra logo abaixo do filtro
+    if st.session_state['carrinho']:
+        st.markdown("---")
+        with st.container(border=True):
+            st.markdown(f"### 🛒 Seu Pedido ({len(st.session_state['carrinho'])} oradores)")
+            
+            # Mostra itens de forma compacta
+            for idx, item in enumerate(st.session_state['carrinho']):
+                d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
+                c_txt, c_btn = st.columns([4, 1])
+                c_txt.markdown(f"**{d_fmt}** - {item['orador']} ({item['tema'][:20]}...)")
+                if c_btn.button("❌", key=f"del_top_{idx}"):
+                    st.session_state['carrinho'].pop(idx)
+                    st.rerun()
+            
+            st.write("")
+            if st.button("🚀 ENVIAR PEDIDO AGORA", type="primary", use_container_width=True):
+                novo = {
+                    "id": datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "solicitante": solicitante,
+                    "mes": f"{mes_ref}/{ano}",
+                    "data_envio": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "itens": st.session_state['carrinho']
+                }
+                if "solicitacoes" not in db: db["solicitacoes"] = []
+                db['solicitacoes'].append(novo)
+                salvar_dados(db)
+                st.session_state['carrinho'] = []
+                st.success("Pedido Enviado com Sucesso!"); st.balloons()
+        st.markdown("---")
+
+    # --- LISTA DE ORADORES ---
     if not db['oradores']:
         st.warning("Nenhum orador cadastrado.")
         return
 
-    st.markdown("### 🗣️ Escolha os Oradores")
+    st.subheader("🗣️ Escolha os Oradores")
     cols = st.columns(3)
     
     for i, orador in enumerate(db['oradores']):
@@ -216,7 +259,8 @@ def area_publica():
                 else: st.warning("Sem temas.")
 
                 st.write("")
-                if st.button("Confirmar", key=f"btn_{i}", use_container_width=True):
+                # Botão full width para facilitar o clique no celular
+                if st.button("Adicionar ao Pedido", key=f"btn_{i}", use_container_width=True):
                     if tema_sel:
                         st.session_state['carrinho'].append({
                             "orador": orador['nome'],
@@ -224,35 +268,9 @@ def area_publica():
                             "tema": tema_sel,
                             "data": d_pref.strftime("%Y-%m-%d")
                         })
-                        st.rerun()
+                        st.toast(f"{orador['nome']} adicionado!", icon="✅")
+                        st.rerun() # Recarrega para mostrar no carrinho lá em cima
                     else: st.error("Escolha um tema!")
-
-    with st.sidebar:
-        st.header("📋 Resumo")
-        st.info(f"Mês: {mes_ref}/{ano}")
-        st.write(f"🏠 **{solicitante}**")
-        st.divider()
-        if st.session_state['carrinho']:
-            for idx, item in enumerate(st.session_state['carrinho']):
-                d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
-                st.markdown(f"<div style='background-color:#323542; padding:8px; border-left:4px solid #5D9CEC; margin-bottom:5px;'><b>{d_fmt}</b> - {item['orador']}<br><small>📖 {item['tema']}</small></div>", unsafe_allow_html=True)
-                if st.button("Remover", key=f"rem_{idx}"):
-                    st.session_state['carrinho'].pop(idx); st.rerun()
-            st.divider()
-            if st.button("🚀 ENVIAR PEDIDO", type="primary"):
-                novo = {
-                    "id": datetime.now().strftime("%Y%m%d%H%M%S"),
-                    "solicitante": solicitante,
-                    "mes": f"{mes_ref}/{ano}",
-                    "data_envio": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "itens": st.session_state['carrinho']
-                }
-                if "solicitacoes" not in db: db["solicitacoes"] = []
-                db['solicitacoes'].append(novo)
-                salvar_dados(db)
-                st.session_state['carrinho'] = []
-                st.success("Enviado!"); st.balloons()
-        else: st.caption("Lista vazia.")
 
 # ==========================================
 # 5. ÁREA ADMIN
@@ -299,7 +317,6 @@ def area_admin():
     with tab2:
         st.subheader("📜 Histórico da Congregação")
         c_busca, c_reg = st.columns([1, 1.5], gap="large")
-        
         with c_busca:
             st.info("🔍 **Pesquisar Tema**")
             num_busca = st.number_input("Nº do Tema:", min_value=1, step=1)
@@ -311,13 +328,11 @@ def area_admin():
                     st.markdown(f"<div class='hist-alert hist-warning'>⚠️ ÚLTIMA VEZ: {d_rec}<br><small>{recente['tema_titulo']}</small></div>", unsafe_allow_html=True)
                 else:
                     st.markdown("<div class='hist-alert hist-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
-
         with c_reg:
             with st.container(border=True):
                 st.write("#### ➕ Registrar Realização")
                 tema_hist = st.selectbox("Tema:", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
                 data_hist = st.date_input("Data:", format="DD/MM/YYYY")
-                
                 if st.button("💾 Salvar Histórico", use_container_width=True):
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
@@ -327,13 +342,11 @@ def area_admin():
                     if anteriores:
                         rec = max(anteriores, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
                         aviso = f"A última vez foi em {datetime.strptime(rec['data'], '%Y-%m-%d').strftime('%d/%m/%Y')}."
-                    
                     db['historico'].append({"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str})
                     salvar_dados(db)
                     st.success("Salvo!")
                     if aviso: st.warning(f"⚠️ {aviso}")
                     else: st.info("ℹ️ Primeira vez deste tema.")
-
         st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
@@ -349,7 +362,6 @@ def area_admin():
             df['temas_ids'] = df['temas_ids'].apply(lambda x: f"{len(x)} temas")
             st.dataframe(df, use_container_width=True)
         else: st.warning("Vazio.")
-        
         st.divider()
         col_add, col_edit = st.columns(2)
         with col_add:
@@ -363,7 +375,6 @@ def area_admin():
                         ids = [int(t.split(' - ')[0]) for t in nt]
                         db['oradores'].append({"nome": n_nome, "cargo": n_cargo, "temas_ids": ids})
                         salvar_dados(db); st.success("Salvo!"); st.rerun()
-        
         with col_edit:
             with st.container(border=True):
                 st.write("#### ✏️ Editar")
@@ -401,6 +412,6 @@ if st.session_state['mostrar_login'] and not st.session_state['modo_admin']:
 if st.session_state['modo_admin']: area_admin()
 else: area_publica()
 
+# SIDEBAR (Ainda mantive para desktop, mas no mobile o topo já resolve)
 st.sidebar.markdown("---")
 st.sidebar.info(f"📍 **Salão do Reino:**\n\n{ENDERECO_SALAO}\n\n🕒 **Reunião:** {HORARIO_REUNIAO}")
-st.sidebar.markdown(f"<a href='{LINK_MAPS}' target='_blank'><button style='background:#4CAF50;color:white;width:100%;border:none;padding:10px;border-radius:5px;'>🗺️ Ver no Street View</button></a>", unsafe_allow_html=True)

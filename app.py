@@ -39,7 +39,13 @@ def carregar_dados():
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
-        ws_oradores = sh.worksheet("oradores")
+        # Carrega Oradores
+        try: ws_oradores = sh.worksheet("oradores")
+        except: 
+            # Se não existir, cria e põe cabeçalho
+            ws_oradores = sh.add_worksheet("oradores", 100, 3)
+            ws_oradores.append_row(["nome", "cargo", "temas_ids"])
+            
         raw_oradores = ws_oradores.get_all_records()
         oradores_fmt = []
         for row in raw_oradores:
@@ -49,9 +55,15 @@ def carregar_dados():
                 except: pass
             oradores_fmt.append({"nome": row['nome'], "cargo": row['cargo'], "temas_ids": ids})
 
-        temas = sh.worksheet("temas").get_all_records()
+        # Temas
+        try: temas = sh.worksheet("temas").get_all_records()
+        except: temas = []
+        
+        # Solicitações
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
         except: solicitacoes = []
+        
+        # Histórico
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
 
@@ -60,23 +72,59 @@ def carregar_dados():
         st.error(f"Erro Conexão: {e}")
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
-def salvar_dados(dados):
+def salvar_oradores_sheet(lista_oradores):
+    """Função específica para salvar oradores sem quebrar o cabeçalho"""
     try:
         client = conectar_gsheets()
-        try: client.open(NOME_PLANILHA_GOOGLE).sheet1.update_acell('A1', json.dumps(dados, ensure_ascii=False))
-        except: pass
-        try:
-            sh = client.open(NOME_PLANILHA_GOOGLE)
-            try: ws_hist = sh.worksheet("historico")
-            except: ws_hist = sh.add_worksheet("historico", 1000, 3)
-            if dados['historico']:
+        sh = client.open(NOME_PLANILHA_GOOGLE)
+        ws = sh.worksheet("oradores")
+        
+        # Limpa tudo e Reescreve (Mais seguro para manter ordem)
+        ws.clear()
+        ws.append_row(["nome", "cargo", "temas_ids"]) # Cabeçalho Obrigatório
+        
+        # Prepara linhas
+        rows = []
+        for o in lista_oradores:
+            # Converte lista de IDs para string "1, 2, 3"
+            ids_str = str(o['temas_ids']).replace('[','').replace(']','')
+            rows.append([o['nome'], o['cargo'], ids_str])
+            
+        ws.append_rows(rows)
+    except Exception as e:
+        st.error(f"Erro ao salvar oradores: {e}")
+
+def salvar_dados_geral(dados, tipo="todos"):
+    """Gerencia o salvamento dependendo do que foi alterado"""
+    try:
+        client = conectar_gsheets()
+        sh = client.open(NOME_PLANILHA_GOOGLE)
+        
+        # Salvar Histórico
+        if tipo in ["todos", "historico"]:
+            try: 
+                ws_hist = sh.worksheet("historico")
                 ws_hist.clear()
                 ws_hist.append_row(["tema_numero", "tema_titulo", "data"])
                 rows = [[h['tema_numero'], h['tema_titulo'], h['data']] for h in dados['historico']]
                 ws_hist.append_rows(rows)
-        except: pass
+            except: 
+                ws_hist = sh.add_worksheet("historico", 1000, 3)
+                
+        # Salvar Solicitações (Backup em JSON na aba solicitacoes se quiser, ou estrutura)
+        # Por simplicidade, mantemos solicitacoes como JSON backup na aba 'solicitacoes' ou 'sheet1' se preferir
+        # Mas aqui vou focar no erro dos oradores.
+        if tipo in ["todos", "solicitacoes"]:
+            try:
+                # Salva como JSON na aba solicitacoes para facilitar estrutura complexa
+                ws_sol = sh.worksheet("solicitacoes")
+                ws_sol.clear()
+                ws_sol.update_acell('A1', json.dumps(dados['solicitacoes'], ensure_ascii=False))
+            except: pass
+
     except: pass
 
+# Sessão
 if 'db' not in st.session_state: st.session_state['db'] = carregar_dados()
 db = st.session_state['db']
 if 'carrinho' not in st.session_state: st.session_state['carrinho'] = []
@@ -150,11 +198,9 @@ ICONES = {"Ancião": "🛡️", "Servo Ministerial": "💼", "Outro": "👤"}
 MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
 
 # ==========================================
-# 4. ÁREA PÚBLICA (MOBILE OTIMIZADA)
+# 4. ÁREA PÚBLICA
 # ==========================================
 def area_publica():
-    
-    # INFO BOX
     st.markdown(f"""
     <div class="info-box">
         <div style="color: #5D9CEC; font-weight: bold; font-size: 1.1em; margin-bottom: 5px;">📍 Salão do Reino</div>
@@ -168,7 +214,6 @@ def area_publica():
     
     st.title("Solicitação de Oradores")
 
-    # IDENTIFICAÇÃO
     with st.container(border=True):
         st.caption("📍 **Identificação da Congregação**")
         c1, c2 = st.columns(2)
@@ -186,24 +231,16 @@ def area_publica():
     ano = hoje.year + 1 if mes_num < hoje.month else hoje.year
     data_padrao = date(ano, mes_num, 1)
 
-    # --- ÁREA DO CARRINHO (AJUSTADA) ---
     if st.session_state['carrinho']:
         st.markdown("---")
         with st.container(border=True):
-            # Título menor e ícone de lista
             st.markdown(f"#### 📋 Seu Pedido ({len(st.session_state['carrinho'])} oradores)")
-            
             for idx, item in enumerate(st.session_state['carrinho']):
                 d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
                 c_txt, c_btn = st.columns([4, 1])
-                
-                # Tema completo com quebra de linha visual
                 c_txt.markdown(f"**{d_fmt}** - {item['orador']}<br><span style='color:#AAA; font-size:0.9em'>{item['tema']}</span>", unsafe_allow_html=True)
-                
                 if c_btn.button("❌", key=f"del_top_{idx}"):
-                    st.session_state['carrinho'].pop(idx)
-                    st.rerun()
-            
+                    st.session_state['carrinho'].pop(idx); st.rerun()
             st.write("")
             if st.button("🚀 ENVIAR PEDIDO AGORA", type="primary", use_container_width=True):
                 novo = {
@@ -215,12 +252,11 @@ def area_publica():
                 }
                 if "solicitacoes" not in db: db["solicitacoes"] = []
                 db['solicitacoes'].append(novo)
-                salvar_dados(db)
+                salvar_dados_geral(db, "solicitacoes")
                 st.session_state['carrinho'] = []
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
 
-    # LISTA DE ORADORES
     if not db['oradores']:
         st.warning("Nenhum orador cadastrado.")
         return
@@ -260,8 +296,7 @@ def area_publica():
                             "tema": tema_sel,
                             "data": d_pref.strftime("%Y-%m-%d")
                         })
-                        st.toast(f"{orador['nome']} adicionado!", icon="✅")
-                        st.rerun()
+                        st.toast(f"{orador['nome']} adicionado!", icon="✅"); st.rerun()
                     else: st.error("Escolha um tema!")
 
 # ==========================================
@@ -281,7 +316,6 @@ def area_admin():
                     txt_zap += f"🏛️ *{solic['solicitante']}*\n"
                     txt_zap += f"📅 Ref: {solic['mes']}\n"
                     txt_zap += "----------------------------------\n\n"
-                    
                     for item in solic['itens']:
                         dt_fmt = datetime.strptime(item['data'], "%Y-%m-%d").strftime("%d/%m")
                         icone = ICONES.get(item['cargo'], "👤")
@@ -290,20 +324,16 @@ def area_admin():
                             <div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div>
                             <div>🗓️ <b>{dt_fmt}</b></div>
                             <div style="opacity:0.8">📖 {item['tema']}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n"
-                        txt_zap += f"📖 {item['tema']}\n\n"
+                        </div>""", unsafe_allow_html=True)
+                        txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n📖 {item['tema']}\n\n"
+                    txt_zap += "----------------------------------\nAtt, Coordenação Parque Jataí."
                     
-                    txt_zap += "----------------------------------\n"
-                    txt_zap += "Att, Coordenação Parque Jataí."
-
                     st.divider()
                     c1, c2 = st.columns([3, 1])
                     c1.text_area("Copiar Mensagem:", txt_zap, height=250)
                     if c2.button("Excluir", key=f"del_{solic['id']}", type="primary"):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
-                        salvar_dados(db)
+                        salvar_dados_geral(db, "solicitacoes")
                         st.rerun()
 
     with tab2:
@@ -318,8 +348,7 @@ def area_admin():
                     recente = max(encontrados, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
                     d_rec = datetime.strptime(recente['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
                     st.markdown(f"<div class='hist-alert hist-warning'>⚠️ ÚLTIMA VEZ: {d_rec}<br><small>{recente['tema_titulo']}</small></div>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<div class='hist-alert hist-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
+                else: st.markdown("<div class='hist-alert hist-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
         with c_reg:
             with st.container(border=True):
                 st.write("#### ➕ Registrar Realização")
@@ -335,10 +364,11 @@ def area_admin():
                         rec = max(anteriores, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
                         aviso = f"A última vez foi em {datetime.strptime(rec['data'], '%Y-%m-%d').strftime('%d/%m/%Y')}."
                     db['historico'].append({"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str})
-                    salvar_dados(db)
+                    salvar_dados_geral(db, "historico")
                     st.success("Salvo!")
                     if aviso: st.warning(f"⚠️ {aviso}")
                     else: st.info("ℹ️ Primeira vez deste tema.")
+
         st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
@@ -366,7 +396,8 @@ def area_admin():
                     if st.form_submit_button("Salvar"):
                         ids = [int(t.split(' - ')[0]) for t in nt]
                         db['oradores'].append({"nome": n_nome, "cargo": n_cargo, "temas_ids": ids})
-                        salvar_dados(db); st.success("Salvo!"); st.rerun()
+                        salvar_oradores_sheet(db['oradores'])
+                        st.success("Salvo!"); st.rerun()
         with col_edit:
             with st.container(border=True):
                 st.write("#### ✏️ Editar")
@@ -383,9 +414,12 @@ def area_admin():
                         c1, c2 = st.columns(2)
                         if c1.form_submit_button("Atualizar"):
                             db['oradores'][idx] = {"nome": en, "cargo": ec, "temas_ids": [int(t.split(' - ')[0]) for t in et]}
-                            salvar_dados(db); st.success("Atualizado!"); st.rerun()
+                            salvar_oradores_sheet(db['oradores'])
+                            st.success("Atualizado!"); st.rerun()
                         if c2.form_submit_button("Excluir", type="primary"):
-                            db['oradores'].pop(idx); salvar_dados(db); st.rerun()
+                            db['oradores'].pop(idx)
+                            salvar_oradores_sheet(db['oradores'])
+                            st.rerun()
 
 # ==========================================
 # 6. RODAPÉ / LOGIN
@@ -403,7 +437,3 @@ if st.session_state['mostrar_login'] and not st.session_state['modo_admin']:
 
 if st.session_state['modo_admin']: area_admin()
 else: area_publica()
-
-# SIDEBAR
-st.sidebar.markdown("---")
-st.sidebar.info(f"📍 **Salão do Reino:**\n\n{ENDERECO_SALAO}\n\n🕒 **Reunião:** {HORARIO_REUNIAO}")

@@ -20,7 +20,7 @@ except: pass
 st.set_page_config(page_title="Solicitação de Oradores", layout="wide", page_icon="📝")
 
 # ==========================================
-# 2. BANCO DE DADOS
+# 2. BANCO DE DADOS (COM PROTEÇÃO DE CABEÇALHO)
 # ==========================================
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -39,31 +39,38 @@ def carregar_dados():
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
-        # Carrega Oradores
+        # --- CARREGAR ORADORES COM FLEXIBILIDADE ---
         try: ws_oradores = sh.worksheet("oradores")
         except: 
-            # Se não existir, cria e põe cabeçalho
+            # Se não existir, cria.
             ws_oradores = sh.add_worksheet("oradores", 100, 3)
-            ws_oradores.append_row(["nome", "cargo", "temas_ids"])
+            ws_oradores.append_row(["Nome", "Cargo", "Temas_IDs"])
             
         raw_oradores = ws_oradores.get_all_records()
+        
+        # Normaliza chaves (converte "Nome" -> "nome", "NOME" -> "nome")
         oradores_fmt = []
         for row in raw_oradores:
+            # Cria um dicionário com chaves minúsculas para evitar erro de Case Sensitive
+            row_clean = {k.lower().strip(): v for k, v in row.items()}
+            
+            nome = row_clean.get('nome', '')
+            cargo = row_clean.get('cargo', '')
+            temas_raw = row_clean.get('temas_ids', '')
+            
             ids = []
-            if str(row.get('temas_ids', '')).strip():
-                try: ids = [int(x.strip()) for x in str(row['temas_ids']).split(',') if x.strip().isdigit()]
+            if str(temas_raw).strip():
+                try: ids = [int(x.strip()) for x in str(temas_raw).split(',') if x.strip().isdigit()]
                 except: pass
-            oradores_fmt.append({"nome": row['nome'], "cargo": row['cargo'], "temas_ids": ids})
+            
+            # Só adiciona se tiver nome
+            if nome:
+                oradores_fmt.append({"nome": nome, "cargo": cargo, "temas_ids": ids})
 
-        # Temas
-        try: temas = sh.worksheet("temas").get_all_records()
-        except: temas = []
-        
-        # Solicitações
+        # --- CARREGAR OUTRAS ABAS ---
+        temas = sh.worksheet("temas").get_all_records()
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
         except: solicitacoes = []
-        
-        # Histórico
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
 
@@ -72,35 +79,63 @@ def carregar_dados():
         st.error(f"Erro Conexão: {e}")
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
-def salvar_oradores_sheet(lista_oradores):
-    """Função específica para salvar oradores sem quebrar o cabeçalho"""
+# --- FUNÇÕES ESPECÍFICAS DE SALVAMENTO (SEM CLEAR) ---
+
+def adicionar_orador_gsheets(novo_orador):
+    """Adiciona uma linha no final, sem mexer no que existe"""
     try:
         client = conectar_gsheets()
-        sh = client.open(NOME_PLANILHA_GOOGLE)
-        ws = sh.worksheet("oradores")
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
         
-        # Limpa tudo e Reescreve (Mais seguro para manter ordem)
-        ws.clear()
-        ws.append_row(["nome", "cargo", "temas_ids"]) # Cabeçalho Obrigatório
+        # Formata IDs
+        ids_str = str(novo_orador['temas_ids']).replace('[','').replace(']','')
         
-        # Prepara linhas
-        rows = []
-        for o in lista_oradores:
-            # Converte lista de IDs para string "1, 2, 3"
-            ids_str = str(o['temas_ids']).replace('[','').replace(']','')
-            rows.append([o['nome'], o['cargo'], ids_str])
-            
-        ws.append_rows(rows)
+        # APPEND: Adiciona na próxima linha vazia (Ex: linha 11)
+        ws.append_row([novo_orador['nome'], novo_orador['cargo'], ids_str])
+        
     except Exception as e:
-        st.error(f"Erro ao salvar oradores: {e}")
+        st.error(f"Erro ao adicionar: {e}")
+
+def atualizar_orador_gsheets(nome_antigo, dados_novos):
+    """Procura o orador pelo nome e atualiza apenas a linha dele"""
+    try:
+        client = conectar_gsheets()
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        
+        # Encontra a célula com o nome
+        cell = ws.find(nome_antigo)
+        if cell:
+            # Atualiza colunas (Assumindo ordem: 1=Nome, 2=Cargo, 3=Temas)
+            ids_str = str(dados_novos['temas_ids']).replace('[','').replace(']','')
+            ws.update_cell(cell.row, 1, dados_novos['nome'])
+            ws.update_cell(cell.row, 2, dados_novos['cargo'])
+            ws.update_cell(cell.row, 3, ids_str)
+        else:
+            st.error("Orador não encontrado na planilha para atualizar.")
+    except Exception as e:
+        st.error(f"Erro ao atualizar: {e}")
+
+def excluir_orador_gsheets(nome_alvo):
+    """Procura e deleta a linha"""
+    try:
+        client = conectar_gsheets()
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        
+        cell = ws.find(nome_alvo)
+        if cell:
+            ws.delete_rows(cell.row)
+        else:
+            st.error("Orador não encontrado para exclusão.")
+    except Exception as e:
+        st.error(f"Erro ao excluir: {e}")
 
 def salvar_dados_geral(dados, tipo="todos"):
-    """Gerencia o salvamento dependendo do que foi alterado"""
+    """Salva Histórico e Solicitações"""
     try:
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
-        # Salvar Histórico
+        # Histórico (Aqui usamos rewrite pois é log de sistema)
         if tipo in ["todos", "historico"]:
             try: 
                 ws_hist = sh.worksheet("historico")
@@ -111,14 +146,11 @@ def salvar_dados_geral(dados, tipo="todos"):
             except: 
                 ws_hist = sh.add_worksheet("historico", 1000, 3)
                 
-        # Salvar Solicitações (Backup em JSON na aba solicitacoes se quiser, ou estrutura)
-        # Por simplicidade, mantemos solicitacoes como JSON backup na aba 'solicitacoes' ou 'sheet1' se preferir
-        # Mas aqui vou focar no erro dos oradores.
+        # Solicitações (Backup JSON)
         if tipo in ["todos", "solicitacoes"]:
             try:
-                # Salva como JSON na aba solicitacoes para facilitar estrutura complexa
                 ws_sol = sh.worksheet("solicitacoes")
-                ws_sol.clear()
+                ws_sol.clear() # Limpa aba solicitações
                 ws_sol.update_acell('A1', json.dumps(dados['solicitacoes'], ensure_ascii=False))
             except: pass
 
@@ -132,7 +164,7 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 3. CSS DARK MODE (MOBILE FRIENDLY)
+# 3. CSS DARK MODE
 # ==========================================
 st.markdown("""
 <style>
@@ -143,53 +175,17 @@ st.markdown("""
         --text-color: #FAFAFA;
         --font: "Segoe UI", sans-serif;
     }
-
     .stApp { background-color: #0E1117; color: #FAFAFA; }
-    
-    .info-box {
-        background-color: #1C1E26;
-        border: 1px solid #333;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
-        font-size: 0.9em;
-    }
-    
-    .map-btn {
-        display: inline-block;
-        background-color: #4CAF50;
-        color: white !important;
-        padding: 5px 15px;
-        border-radius: 4px;
-        text-decoration: none;
-        font-weight: bold;
-        margin-top: 5px;
-    }
-
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #262730;
-        border: 1px solid #4A4A4A;
-        border-radius: 8px;
-        padding: 15px;
-    }
-    
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input {
-        color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important;
-    }
-    div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] {
-        background-color: #262730 !important; color: white !important;
-    }
-    
-    div.stButton > button {
-        background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold;
-    }
-    
+    .info-box { background-color: #1C1E26; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 0.9em; }
+    .map-btn { display: inline-block; background-color: #4CAF50; color: white !important; padding: 5px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 5px; }
+    div[data-testid="stVerticalBlockBorderWrapper"] { background-color: #262730; border: 1px solid #4A4A4A; border-radius: 8px; padding: 15px; }
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input { color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important; }
+    div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] { background-color: #262730 !important; color: white !important; }
+    div.stButton > button { background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold; }
     h1, h2, h3, h4, p, li, label, div { color: #E0E0E0; }
-    
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
     .hist-ok { background-color: #155724; color: #d4edda; border: 1px solid #155724; }
     .hist-warning { background-color: #856404; color: #fff3cd; border: 1px solid #856404; }
-    
     .admin-card { background-color: #323542; padding: 10px; border-left: 4px solid #5D9CEC; margin-bottom: 5px; border-radius: 4px; }
 </style>
 """, unsafe_allow_html=True)
@@ -368,7 +364,6 @@ def area_admin():
                     st.success("Salvo!")
                     if aviso: st.warning(f"⚠️ {aviso}")
                     else: st.info("ℹ️ Primeira vez deste tema.")
-
         st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
@@ -395,8 +390,14 @@ def area_admin():
                     nt = st.multiselect("Temas", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
                     if st.form_submit_button("Salvar"):
                         ids = [int(t.split(' - ')[0]) for t in nt]
-                        db['oradores'].append({"nome": n_nome, "cargo": n_cargo, "temas_ids": ids})
-                        salvar_oradores_sheet(db['oradores'])
+                        novo_orador = {"nome": n_nome, "cargo": n_cargo, "temas_ids": ids}
+                        
+                        # 1. Atualiza memória
+                        db['oradores'].append(novo_orador)
+                        
+                        # 2. SALVA NO GOOGLE SHEETS (APPEND APENAS)
+                        adicionar_orador_gsheets(novo_orador)
+                        
                         st.success("Salvo!"); st.rerun()
         with col_edit:
             with st.container(border=True):
@@ -412,13 +413,26 @@ def area_admin():
                         def_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dat['temas_ids']]
                         et = st.multiselect("Temas", all_t, default=def_t)
                         c1, c2 = st.columns(2)
+                        
                         if c1.form_submit_button("Atualizar"):
-                            db['oradores'][idx] = {"nome": en, "cargo": ec, "temas_ids": [int(t.split(' - ')[0]) for t in et]}
-                            salvar_oradores_sheet(db['oradores'])
+                            ids = [int(t.split(' - ')[0]) for t in et]
+                            dados_novos = {"nome": en, "cargo": ec, "temas_ids": ids}
+                            
+                            # Atualiza Memória
+                            db['oradores'][idx] = dados_novos
+                            
+                            # Atualiza Planilha (Busca e Substitui)
+                            atualizar_orador_gsheets(dat['nome'], dados_novos)
+                            
                             st.success("Atualizado!"); st.rerun()
+                            
                         if c2.form_submit_button("Excluir", type="primary"):
+                            # Atualiza Memória
                             db['oradores'].pop(idx)
-                            salvar_oradores_sheet(db['oradores'])
+                            
+                            # Atualiza Planilha (Deleta linha)
+                            excluir_orador_gsheets(dat['nome'])
+                            
                             st.rerun()
 
 # ==========================================

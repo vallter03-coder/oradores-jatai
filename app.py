@@ -5,6 +5,7 @@ from datetime import datetime, date
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import time
 
 # ==========================================
 # 1. CONFIGURAÇÕES
@@ -20,7 +21,7 @@ except: pass
 st.set_page_config(page_title="Solicitação de Oradores", layout="wide", page_icon="📝")
 
 # ==========================================
-# 2. BANCO DE DADOS (COM PROTEÇÃO DE CABEÇALHO)
+# 2. CONEXÃO E FUNÇÕES SEGURAS
 # ==========================================
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -31,44 +32,47 @@ def conectar_gsheets():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     else:
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-    client = gspread.authorize(creds)
-    return client
+    return gspread.authorize(creds)
 
-def carregar_dados():
+def carregar_dados_seguro():
+    """Carrega dados sem risco de sobrescrever"""
     try:
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
-        # --- CARREGAR ORADORES COM FLEXIBILIDADE ---
-        try: ws_oradores = sh.worksheet("oradores")
+        # --- CARREGAR ORADORES ---
+        try: 
+            ws_oradores = sh.worksheet("oradores")
+            # Verifica se está vazio e cria cabeçalho se precisar
+            if not ws_oradores.get_all_values():
+                ws_oradores.append_row(["nome", "cargo", "temas_ids"])
         except: 
-            # Se não existir, cria.
             ws_oradores = sh.add_worksheet("oradores", 100, 3)
-            ws_oradores.append_row(["Nome", "Cargo", "Temas_IDs"])
+            ws_oradores.append_row(["nome", "cargo", "temas_ids"])
             
         raw_oradores = ws_oradores.get_all_records()
         
-        # Normaliza chaves (converte "Nome" -> "nome", "NOME" -> "nome")
+        # Processa os dados
         oradores_fmt = []
         for row in raw_oradores:
-            # Cria um dicionário com chaves minúsculas para evitar erro de Case Sensitive
-            row_clean = {k.lower().strip(): v for k, v in row.items()}
+            # Garante que as chaves existam (ignorando maiúsculas/minúsculas)
+            r = {k.lower().strip(): v for k, v in row.items()}
             
-            nome = row_clean.get('nome', '')
-            cargo = row_clean.get('cargo', '')
-            temas_raw = row_clean.get('temas_ids', '')
-            
+            # Pula linhas de "lixo" se houver (ex: aquele texto json antigo)
+            if 'nome' not in r or str(r['nome']).startswith('{'):
+                continue
+                
             ids = []
-            if str(temas_raw).strip():
-                try: ids = [int(x.strip()) for x in str(temas_raw).split(',') if x.strip().isdigit()]
+            if str(r.get('temas_ids', '')).strip():
+                try: ids = [int(x.strip()) for x in str(r['temas_ids']).split(',') if x.strip().isdigit()]
                 except: pass
             
-            # Só adiciona se tiver nome
-            if nome:
-                oradores_fmt.append({"nome": nome, "cargo": cargo, "temas_ids": ids})
+            if r.get('nome'):
+                oradores_fmt.append({"nome": r['nome'], "cargo": r.get('cargo',''), "temas_ids": ids})
 
         # --- CARREGAR OUTRAS ABAS ---
-        temas = sh.worksheet("temas").get_all_records()
+        try: temas = sh.worksheet("temas").get_all_records()
+        except: temas = []
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
         except: solicitacoes = []
         try: historico = sh.worksheet("historico").get_all_records()
@@ -79,85 +83,69 @@ def carregar_dados():
         st.error(f"Erro Conexão: {e}")
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
-# --- FUNÇÕES ESPECÍFICAS DE SALVAMENTO (SEM CLEAR) ---
+# --- FUNÇÕES DE AÇÃO DIRETA (SEM BACKUP A1) ---
 
-def adicionar_orador_gsheets(novo_orador):
-    """Adiciona uma linha no final, sem mexer no que existe"""
+def adicionar_orador_direto(novo_orador):
+    """Adiciona apenas uma nova linha no final"""
     try:
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
         
-        # Formata IDs
+        # Formata IDs para string limpa
         ids_str = str(novo_orador['temas_ids']).replace('[','').replace(']','')
         
-        # APPEND: Adiciona na próxima linha vazia (Ex: linha 11)
+        # COMANDO CRÍTICO: ADICIONAR LINHA NO FINAL
         ws.append_row([novo_orador['nome'], novo_orador['cargo'], ids_str])
-        
+        return True
     except Exception as e:
-        st.error(f"Erro ao adicionar: {e}")
+        st.error(f"Erro ao adicionar na planilha: {e}")
+        return False
 
-def atualizar_orador_gsheets(nome_antigo, dados_novos):
-    """Procura o orador pelo nome e atualiza apenas a linha dele"""
+def atualizar_orador_direto(nome_antigo, dados_novos):
+    """Atualiza linha específica"""
     try:
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
-        
-        # Encontra a célula com o nome
-        cell = ws.find(nome_antigo)
+        cell = ws.find(nome_antigo) # Procura pelo nome
         if cell:
-            # Atualiza colunas (Assumindo ordem: 1=Nome, 2=Cargo, 3=Temas)
             ids_str = str(dados_novos['temas_ids']).replace('[','').replace(']','')
             ws.update_cell(cell.row, 1, dados_novos['nome'])
             ws.update_cell(cell.row, 2, dados_novos['cargo'])
             ws.update_cell(cell.row, 3, ids_str)
-        else:
-            st.error("Orador não encontrado na planilha para atualizar.")
-    except Exception as e:
-        st.error(f"Erro ao atualizar: {e}")
+            return True
+    except: return False
 
-def excluir_orador_gsheets(nome_alvo):
-    """Procura e deleta a linha"""
+def excluir_orador_direto(nome_alvo):
+    """Deleta linha específica"""
     try:
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
-        
         cell = ws.find(nome_alvo)
         if cell:
             ws.delete_rows(cell.row)
-        else:
-            st.error("Orador não encontrado para exclusão.")
-    except Exception as e:
-        st.error(f"Erro ao excluir: {e}")
+            return True
+    except: return False
 
-def salvar_dados_geral(dados, tipo="todos"):
-    """Salva Histórico e Solicitações"""
+def salvar_historico_direto(novo_hist):
     try:
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
-        
-        # Histórico (Aqui usamos rewrite pois é log de sistema)
-        if tipo in ["todos", "historico"]:
-            try: 
-                ws_hist = sh.worksheet("historico")
-                ws_hist.clear()
-                ws_hist.append_row(["tema_numero", "tema_titulo", "data"])
-                rows = [[h['tema_numero'], h['tema_titulo'], h['data']] for h in dados['historico']]
-                ws_hist.append_rows(rows)
-            except: 
-                ws_hist = sh.add_worksheet("historico", 1000, 3)
-                
-        # Solicitações (Backup JSON)
-        if tipo in ["todos", "solicitacoes"]:
-            try:
-                ws_sol = sh.worksheet("solicitacoes")
-                ws_sol.clear() # Limpa aba solicitações
-                ws_sol.update_acell('A1', json.dumps(dados['solicitacoes'], ensure_ascii=False))
-            except: pass
+        try: ws = sh.worksheet("historico")
+        except: ws = sh.add_worksheet("historico", 100, 3); ws.append_row(["tema_numero", "tema_titulo", "data"])
+        ws.append_row([novo_hist['tema_numero'], novo_hist['tema_titulo'], novo_hist['data']])
+    except: pass
 
+def salvar_solicitacao_backup(lista_solicitacoes):
+    # Salva JSON APENAS na aba solicitacoes (nunca na oradores)
+    try:
+        client = conectar_gsheets()
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
+        ws.clear()
+        ws.update_acell('A1', json.dumps(lista_solicitacoes, ensure_ascii=False))
     except: pass
 
 # Sessão
-if 'db' not in st.session_state: st.session_state['db'] = carregar_dados()
+if 'db' not in st.session_state: st.session_state['db'] = carregar_dados_seguro()
 db = st.session_state['db']
 if 'carrinho' not in st.session_state: st.session_state['carrinho'] = []
 if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
@@ -168,13 +156,7 @@ if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = 
 # ==========================================
 st.markdown("""
 <style>
-    :root {
-        --primary-color: #5D9CEC;
-        --background-color: #0E1117;
-        --secondary-background-color: #262730;
-        --text-color: #FAFAFA;
-        --font: "Segoe UI", sans-serif;
-    }
+    :root { --primary: #5D9CEC; --bg: #0E1117; --sec-bg: #262730; --text: #FAFAFA; }
     .stApp { background-color: #0E1117; color: #FAFAFA; }
     .info-box { background-color: #1C1E26; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 0.9em; }
     .map-btn { display: inline-block; background-color: #4CAF50; color: white !important; padding: 5px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 5px; }
@@ -248,7 +230,7 @@ def area_publica():
                 }
                 if "solicitacoes" not in db: db["solicitacoes"] = []
                 db['solicitacoes'].append(novo)
-                salvar_dados_geral(db, "solicitacoes")
+                salvar_solicitacao_backup(db['solicitacoes'])
                 st.session_state['carrinho'] = []
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
@@ -329,7 +311,7 @@ def area_admin():
                     c1.text_area("Copiar Mensagem:", txt_zap, height=250)
                     if c2.button("Excluir", key=f"del_{solic['id']}", type="primary"):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
-                        salvar_dados_geral(db, "solicitacoes")
+                        salvar_solicitacao_backup(db['solicitacoes'])
                         st.rerun()
 
     with tab2:
@@ -359,8 +341,11 @@ def area_admin():
                     if anteriores:
                         rec = max(anteriores, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
                         aviso = f"A última vez foi em {datetime.strptime(rec['data'], '%Y-%m-%d').strftime('%d/%m/%Y')}."
-                    db['historico'].append({"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str})
-                    salvar_dados_geral(db, "historico")
+                    
+                    novo_hist = {"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str}
+                    db['historico'].append(novo_hist)
+                    salvar_historico_direto(novo_hist)
+                    
                     st.success("Salvo!")
                     if aviso: st.warning(f"⚠️ {aviso}")
                     else: st.info("ℹ️ Primeira vez deste tema.")
@@ -392,11 +377,8 @@ def area_admin():
                         ids = [int(t.split(' - ')[0]) for t in nt]
                         novo_orador = {"nome": n_nome, "cargo": n_cargo, "temas_ids": ids}
                         
-                        # 1. Atualiza memória
                         db['oradores'].append(novo_orador)
-                        
-                        # 2. SALVA NO GOOGLE SHEETS (APPEND APENAS)
-                        adicionar_orador_gsheets(novo_orador)
+                        adicionar_orador_direto(novo_orador) # ADICIONA NO FINAL SEM MUDAR O QUE JÁ EXISTE
                         
                         st.success("Salvo!"); st.rerun()
         with col_edit:
@@ -413,26 +395,15 @@ def area_admin():
                         def_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dat['temas_ids']]
                         et = st.multiselect("Temas", all_t, default=def_t)
                         c1, c2 = st.columns(2)
-                        
                         if c1.form_submit_button("Atualizar"):
                             ids = [int(t.split(' - ')[0]) for t in et]
-                            dados_novos = {"nome": en, "cargo": ec, "temas_ids": ids}
-                            
-                            # Atualiza Memória
-                            db['oradores'][idx] = dados_novos
-                            
-                            # Atualiza Planilha (Busca e Substitui)
-                            atualizar_orador_gsheets(dat['nome'], dados_novos)
-                            
+                            novos_dados = {"nome": en, "cargo": ec, "temas_ids": ids}
+                            db['oradores'][idx] = novos_dados
+                            atualizar_orador_direto(dat['nome'], novos_dados)
                             st.success("Atualizado!"); st.rerun()
-                            
                         if c2.form_submit_button("Excluir", type="primary"):
-                            # Atualiza Memória
+                            excluir_orador_direto(dat['nome'])
                             db['oradores'].pop(idx)
-                            
-                            # Atualiza Planilha (Deleta linha)
-                            excluir_orador_gsheets(dat['nome'])
-                            
                             st.rerun()
 
 # ==========================================

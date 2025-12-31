@@ -283,7 +283,7 @@ def area_publica():
 # 6. ÁREA ADMIN (LAYOUT CLÁSSICO RESTAURADO)
 # ==========================================
 def area_admin():
-    st.title("🔒 Painel do Coordenador")
+    st.title("🔒 Painel de Controle")
     tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Gerenciar Oradores"])
     
     # --- PEDIDOS ---
@@ -440,4 +440,5 @@ if st.session_state['mostrar_login'] and not st.session_state['modo_admin']:
 
 if st.session_state['modo_admin']: area_admin()
 else: area_publica()
+
 

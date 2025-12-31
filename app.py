@@ -302,7 +302,7 @@ def area_admin():
                         icone = ICONES.get(item['cargo'], "👤")
                         st.markdown(f"""<div class="admin-card"><div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div><div>🗓️ <b>{dt_fmt}</b></div><div style="opacity:0.8">📖 {item['tema']}</div></div>""", unsafe_allow_html=True)
                         txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n📖 {item['tema']}\n\n"
-                    txt_zap += "----------------------------------\nAtt, Coordenação Parque Jataí."
+                    txt_zap += "----------------------------------\nAtt, Ricardo Rosa, Parque Jataí."
                     
                     st.divider()
                     st.text_area("Copiar Mensagem:", txt_zap, height=250)
@@ -440,3 +440,4 @@ if st.session_state['mostrar_login'] and not st.session_state['modo_admin']:
 
 if st.session_state['modo_admin']: area_admin()
 else: area_publica()
+

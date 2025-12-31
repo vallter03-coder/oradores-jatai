@@ -63,11 +63,8 @@ def carregar_dados():
 def salvar_dados(dados):
     try:
         client = conectar_gsheets()
-        # Backup JSON na primeira aba
         try: client.open(NOME_PLANILHA_GOOGLE).sheet1.update_acell('A1', json.dumps(dados, ensure_ascii=False))
         except: pass
-        
-        # Salvar Histórico na aba real
         try:
             sh = client.open(NOME_PLANILHA_GOOGLE)
             try: ws_hist = sh.worksheet("historico")
@@ -87,75 +84,77 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 3. CSS DARK MODE (VISUAL ESCURO)
+# 3. CSS (DARK MODE FORÇADO)
 # ==========================================
 st.markdown("""
 <style>
-    /* Forçar Fundo Escuro Global */
+    /* SOBRESCREVENDO VARIÁVEIS DO STREAMLIT PARA FORÇAR ESCURO */
+    :root {
+        --primary-color: #5D9CEC;
+        --background-color: #0E1117;
+        --secondary-background-color: #262730;
+        --text-color: #FAFAFA;
+        --font: "Segoe UI", sans-serif;
+    }
+
+    /* Fundo Geral */
     .stApp {
         background-color: #0E1117;
         color: #FAFAFA;
     }
-
-    /* Cards (Containers) em Cinza Escuro */
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #1C1E26;
+        border-right: 1px solid #333;
+    }
+    
+    /* Inputs (Caixas de Texto) */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input {
+        color: white !important;
+        background-color: #262730 !important;
+        border: 1px solid #4A4A4A !important;
+    }
+    /* Texto dentro dos Selectbox */
+    div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] {
+        background-color: #262730 !important;
+        color: white !important;
+    }
+    
+    /* Containers (Cards) */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #262730;
-        border: 1px solid #41444C;
+        border: 1px solid #4A4A4A;
         border-radius: 8px;
         padding: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    
-    /* Inputs Escuros */
-    .stTextInput input, .stSelectbox div, .stDateInput input, .stNumberInput input {
-        background-color: #1C1E26 !important;
-        color: white !important;
-        border: 1px solid #464B5C !important;
-    }
-    
-    /* Sidebar Escura */
-    [data-testid="stSidebar"] {
-        background-color: #262730;
-        border-right: 1px solid #41444C;
-    }
-
-    /* Títulos em Azul Claro (Melhor contraste no escuro) */
-    h1, h2, h3, h4, h5 {
-        color: #5D9CEC !important;
-        font-family: 'Segoe UI', sans-serif;
-    }
-
-    /* Texto Geral */
-    p, label, span, div {
-        color: #E0E0E0;
     }
     
     /* Botões */
     div.stButton > button {
-        background-color: #4da6ff; /* Azul mais vivo */
-        color: white; 
-        border-radius: 6px; 
-        font-weight: bold;
+        background-color: #004E8C;
+        color: white;
         border: none;
+        border-radius: 5px;
+        font-weight: bold;
     }
-    div.stButton > button:hover {
-        background-color: #0073e6;
+    
+    /* Textos */
+    h1, h2, h3, h4, p, li, label {
+        color: #E0E0E0 !important;
     }
-
-    /* Card Admin no Modo Escuro */
+    
+    /* Ajustes Específicos */
+    .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
+    .hist-ok { background-color: #155724; color: #d4edda; border: 1px solid #155724; }
+    .hist-warning { background-color: #856404; color: #fff3cd; border: 1px solid #856404; }
+    
     .admin-card {
         background-color: #323542;
         padding: 10px;
-        border-radius: 5px;
-        border-left: 5px solid #5D9CEC;
-        margin-bottom: 10px;
+        border-left: 4px solid #5D9CEC;
+        margin-bottom: 5px;
+        border-radius: 4px;
     }
-    
-    /* Alertas do Histórico (Cores adaptadas para fundo escuro) */
-    .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
-    .hist-ok { background-color: #1e4d2b; color: #d4edda; border: 1px solid #155724; }
-    .hist-warning { background-color: #533f03; color: #fff3cd; border: 1px solid #856404; }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,7 +235,7 @@ def area_publica():
         if st.session_state['carrinho']:
             for idx, item in enumerate(st.session_state['carrinho']):
                 d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
-                st.markdown(f"<div style='background-color: #323542; padding:10px; border-left:4px solid #5D9CEC; margin-bottom:5px;'><b>{d_fmt}</b> - {item['orador']}<br><small>📖 {item['tema']}</small></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color:#323542; padding:8px; border-left:4px solid #5D9CEC; margin-bottom:5px;'><b>{d_fmt}</b> - {item['orador']}<br><small>📖 {item['tema']}</small></div>", unsafe_allow_html=True)
                 if st.button("Remover", key=f"rem_{idx}"):
                     st.session_state['carrinho'].pop(idx); st.rerun()
             st.divider()
@@ -276,7 +275,6 @@ def area_admin():
                     for item in solic['itens']:
                         dt_fmt = datetime.strptime(item['data'], "%Y-%m-%d").strftime("%d/%m")
                         icone = ICONES.get(item['cargo'], "👤")
-                        
                         st.markdown(f"""
                         <div class="admin-card">
                             <div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div>
@@ -284,7 +282,6 @@ def area_admin():
                             <div style="opacity:0.8">📖 {item['tema']}</div>
                         </div>
                         """, unsafe_allow_html=True)
-                        
                         txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n"
                         txt_zap += f"📖 {item['tema']}\n\n"
                     

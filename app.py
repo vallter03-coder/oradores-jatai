@@ -88,7 +88,6 @@ if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = 
 # ==========================================
 st.markdown("""
 <style>
-    /* VARIAVEIS GLOBAIS FORÇADAS PARA DARK */
     :root {
         --primary-color: #5D9CEC;
         --background-color: #0E1117;
@@ -99,7 +98,6 @@ st.markdown("""
 
     .stApp { background-color: #0E1117; color: #FAFAFA; }
     
-    /* Box Informativo do Topo */
     .info-box {
         background-color: #1C1E26;
         border: 1px solid #333;
@@ -109,7 +107,6 @@ st.markdown("""
         font-size: 0.9em;
     }
     
-    /* Botão Mapa Compacto */
     .map-btn {
         display: inline-block;
         background-color: #4CAF50;
@@ -121,7 +118,6 @@ st.markdown("""
         margin-top: 5px;
     }
 
-    /* Cards */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #262730;
         border: 1px solid #4A4A4A;
@@ -129,7 +125,6 @@ st.markdown("""
         padding: 15px;
     }
     
-    /* Inputs */
     .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input {
         color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important;
     }
@@ -137,15 +132,12 @@ st.markdown("""
         background-color: #262730 !important; color: white !important;
     }
     
-    /* Botões */
     div.stButton > button {
         background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold;
     }
     
-    /* Textos */
     h1, h2, h3, h4, p, li, label, div { color: #E0E0E0; }
     
-    /* Alertas */
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
     .hist-ok { background-color: #155724; color: #d4edda; border: 1px solid #155724; }
     .hist-warning { background-color: #856404; color: #fff3cd; border: 1px solid #856404; }
@@ -162,8 +154,7 @@ MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, 
 # ==========================================
 def area_publica():
     
-    # --- INFO BOX (VISÍVEL NO CELULAR) ---
-    # Colocado ANTES do título para ser a primeira coisa que veem
+    # INFO BOX
     st.markdown(f"""
     <div class="info-box">
         <div style="color: #5D9CEC; font-weight: bold; font-size: 1.1em; margin-bottom: 5px;">📍 Salão do Reino</div>
@@ -177,7 +168,7 @@ def area_publica():
     
     st.title("Solicitação de Oradores")
 
-    # --- IDENTIFICAÇÃO ---
+    # IDENTIFICAÇÃO
     with st.container(border=True):
         st.caption("📍 **Identificação da Congregação**")
         c1, c2 = st.columns(2)
@@ -195,18 +186,20 @@ def area_publica():
     ano = hoje.year + 1 if mes_num < hoje.month else hoje.year
     data_padrao = date(ano, mes_num, 1)
 
-    # --- ÁREA DO CARRINHO (PARA APARECER NO CELULAR) ---
-    # Se tiver itens, mostra logo abaixo do filtro
+    # --- ÁREA DO CARRINHO (AJUSTADA) ---
     if st.session_state['carrinho']:
         st.markdown("---")
         with st.container(border=True):
-            st.markdown(f"### 🛒 Seu Pedido ({len(st.session_state['carrinho'])} oradores)")
+            # Título menor e ícone de lista
+            st.markdown(f"#### 📋 Seu Pedido ({len(st.session_state['carrinho'])} oradores)")
             
-            # Mostra itens de forma compacta
             for idx, item in enumerate(st.session_state['carrinho']):
                 d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
                 c_txt, c_btn = st.columns([4, 1])
-                c_txt.markdown(f"**{d_fmt}** - {item['orador']} ({item['tema'][:20]}...)")
+                
+                # Tema completo com quebra de linha visual
+                c_txt.markdown(f"**{d_fmt}** - {item['orador']}<br><span style='color:#AAA; font-size:0.9em'>{item['tema']}</span>", unsafe_allow_html=True)
+                
                 if c_btn.button("❌", key=f"del_top_{idx}"):
                     st.session_state['carrinho'].pop(idx)
                     st.rerun()
@@ -227,7 +220,7 @@ def area_publica():
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
 
-    # --- LISTA DE ORADORES ---
+    # LISTA DE ORADORES
     if not db['oradores']:
         st.warning("Nenhum orador cadastrado.")
         return
@@ -259,7 +252,6 @@ def area_publica():
                 else: st.warning("Sem temas.")
 
                 st.write("")
-                # Botão full width para facilitar o clique no celular
                 if st.button("Adicionar ao Pedido", key=f"btn_{i}", use_container_width=True):
                     if tema_sel:
                         st.session_state['carrinho'].append({
@@ -269,7 +261,7 @@ def area_publica():
                             "data": d_pref.strftime("%Y-%m-%d")
                         })
                         st.toast(f"{orador['nome']} adicionado!", icon="✅")
-                        st.rerun() # Recarrega para mostrar no carrinho lá em cima
+                        st.rerun()
                     else: st.error("Escolha um tema!")
 
 # ==========================================
@@ -412,6 +404,6 @@ if st.session_state['mostrar_login'] and not st.session_state['modo_admin']:
 if st.session_state['modo_admin']: area_admin()
 else: area_publica()
 
-# SIDEBAR (Ainda mantive para desktop, mas no mobile o topo já resolve)
+# SIDEBAR
 st.sidebar.markdown("---")
 st.sidebar.info(f"📍 **Salão do Reino:**\n\n{ENDERECO_SALAO}\n\n🕒 **Reunião:** {HORARIO_REUNIAO}")

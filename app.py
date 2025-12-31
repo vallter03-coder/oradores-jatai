@@ -50,49 +50,36 @@ def carregar_dados():
                 except: pass
             oradores_fmt.append({"nome": row['nome'], "cargo": row['cargo'], "temas_ids": ids})
 
-        # Temas, Solicitações e HISTÓRICO LOCAL
+        # Temas, Solicitações e Histórico
         temas = sh.worksheet("temas").get_all_records()
-        
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
         except: solicitacoes = []
-        
-        # Tenta carregar aba de histórico, se não existir, cria vazia na memória
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
 
-        return {
-            "oradores": oradores_fmt, 
-            "temas": temas, 
-            "solicitacoes": solicitacoes,
-            "historico": historico
-        }
+        return {"oradores": oradores_fmt, "temas": temas, "solicitacoes": solicitacoes, "historico": historico}
     except Exception as e:
         st.error(f"Erro Conexão: {e}")
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
 
 def salvar_dados(dados):
-    # Salva JSON na célula A1 da primeira aba (Backup Rápido)
     try:
         client = conectar_gsheets()
-        sheet = client.open(NOME_PLANILHA_GOOGLE).sheet1
-        sheet.update_acell('A1', json.dumps(dados, ensure_ascii=False))
+        # Backup JSON
+        try: client.open(NOME_PLANILHA_GOOGLE).sheet1.update_acell('A1', json.dumps(dados, ensure_ascii=False))
+        except: pass
         
-        # Tenta salvar o HISTÓRICO na aba específica para persistir melhor
+        # Salvar Histórico na aba real
         try:
             sh = client.open(NOME_PLANILHA_GOOGLE)
             try: ws_hist = sh.worksheet("historico")
             except: ws_hist = sh.add_worksheet("historico", 1000, 3)
-            
-            # Reescreve histórico (método simples)
             if dados['historico']:
-                # Headers
                 ws_hist.clear()
                 ws_hist.append_row(["tema_numero", "tema_titulo", "data"])
-                # Rows
                 rows = [[h['tema_numero'], h['tema_titulo'], h['data']] for h in dados['historico']]
                 ws_hist.append_rows(rows)
         except: pass
-            
     except: pass
 
 # Sessão
@@ -103,24 +90,67 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 3. ESTILO (CSS)
+# 3. CSS ADAPTATIVO (CLARO / ESCURO)
 # ==========================================
 st.markdown("""
 <style>
-    .stApp { background-color: #F4F6F9; color: #333; }
-    div[data-testid="stVerticalBlockBorderWrapper"] { background-color: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .stTextInput input, .stSelectbox div, .stDateInput input { background-color: #FFF; border-radius: 4px; }
-    div.stButton > button { background-color: #004E8C; color: white; border-radius: 6px; font-weight: bold; }
-    [data-testid="stSidebar"] { background-color: white; border-right: 1px solid #DDD; }
-    h1, h2, h3 { color: #004E8C; font-family: sans-serif; }
+    /* USANDO VARIÁVEIS NATIVAS DO STREAMLIT 
+       --primary-color, --background-color, --secondary-background-color, --text-color 
+    */
+
+    /* Ajuste dos Cards (Containers com borda) */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: var(--secondary-background-color); /* Adapta ao tema */
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    /* Botões Principais (Azul Marca) */
+    div.stButton > button {
+        background-color: #004E8C; 
+        color: white; 
+        border-radius: 8px; 
+        font-weight: bold;
+        border: none;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        background-color: #003366;
+        color: white; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
     
-    /* Card Admin */
-    .admin-card { background: #E3F2FD; padding: 10px; border-radius: 5px; border-left: 5px solid #004E8C; margin-bottom: 10px; }
+    /* Inputs e Selectbox */
+    .stTextInput input, .stSelectbox div, .stDateInput input, .stNumberInput input {
+        border-radius: 5px;
+    }
+
+    /* Títulos - Mantendo azul da marca, mas legível */
+    h1, h2, h3, h4 {
+        color: #004E8C !important;
+        font-family: 'Segoe UI', sans-serif;
+    }
     
-    /* Box de Alerta do Histórico */
+    /* Card Admin (Usando transparência para funcionar no escuro) */
+    .admin-card { 
+        background-color: rgba(0, 78, 140, 0.1); /* Azul bem clarinho transparente */
+        padding: 12px; 
+        border-radius: 8px; 
+        border-left: 5px solid #004E8C; 
+        margin-bottom: 10px; 
+    }
+    
+    /* Alertas do Histórico */
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
-    .hist-ok { background-color: #D4EDDA; color: #155724; border: 1px solid #C3E6CB; }
-    .hist-warning { background-color: #FFF3CD; color: #856404; border: 1px solid #FFEEBA; }
+    .hist-ok { background-color: rgba(40, 167, 69, 0.2); color: #28a745; border: 1px solid #28a745; }
+    .hist-warning { background-color: rgba(255, 193, 7, 0.2); color: #d39e00; border: 1px solid #d39e00; }
+    
+    /* Texto pequeno */
+    small, .caption {
+        opacity: 0.8;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -201,7 +231,13 @@ def area_publica():
         if st.session_state['carrinho']:
             for idx, item in enumerate(st.session_state['carrinho']):
                 d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
-                st.markdown(f"<div style='background:white; padding:8px; border-left:4px solid #004E8C; margin-bottom:5px; font-size:0.9em;'><b>{d_fmt}</b> - {item['orador']}<br>📖 {item['tema']}</div>", unsafe_allow_html=True)
+                # Card do Carrinho (Adaptativo)
+                st.markdown(f"""
+                <div style='background-color: var(--secondary-background-color); padding:10px; border-radius:5px; border-left:4px solid #004E8C; margin-bottom:5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                    <b>{d_fmt}</b> - {item['orador']}<br>
+                    <small>📖 {item['tema']}</small>
+                </div>""", unsafe_allow_html=True)
+                
                 if st.button("Remover", key=f"rem_{idx}"):
                     st.session_state['carrinho'].pop(idx); st.rerun()
             st.divider()
@@ -221,14 +257,13 @@ def area_publica():
         else: st.caption("Lista vazia.")
 
 # ==========================================
-# 5. ÁREA ADMIN (COORDINADOR)
+# 5. ÁREA ADMIN
 # ==========================================
 def area_admin():
     st.title("🔒 Painel do Coordenador")
+    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Oradores"])
     
-    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico da Congregação", "👥 Oradores"])
-    
-    # --- ABA 1: PEDIDOS ---
+    # ABA 1: PEDIDOS
     with tab1:
         if not db['solicitacoes']: 
             st.info("Nenhum pedido na lista.")
@@ -243,13 +278,15 @@ def area_admin():
                     for item in solic['itens']:
                         dt_fmt = datetime.strptime(item['data'], "%Y-%m-%d").strftime("%d/%m")
                         icone = ICONES.get(item['cargo'], "👤")
+                        
                         st.markdown(f"""
                         <div class="admin-card">
                             <div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div>
                             <div>🗓️ <b>{dt_fmt}</b></div>
-                            <div style="color:#444;">📖 {item['tema']}</div>
+                            <div style="opacity:0.8">📖 {item['tema']}</div>
                         </div>
                         """, unsafe_allow_html=True)
+                        
                         txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n"
                         txt_zap += f"📖 {item['tema']}\n\n"
                     
@@ -264,138 +301,95 @@ def area_admin():
                         salvar_dados(db)
                         st.rerun()
 
-    # --- ABA 2: HISTÓRICO (NOVO!) ---
+    # ABA 2: HISTÓRICO
     with tab2:
-        st.subheader("📜 Histórico de Discursos Locais")
-        st.markdown("Controle o que já foi feito na nossa congregação.")
+        st.subheader("📜 Histórico da Congregação")
+        c_busca, c_reg = st.columns([1, 1.5], gap="large")
         
-        col_pesquisa, col_registro = st.columns([1, 1.5], gap="large")
-        
-        # --- COLUNA ESQUERDA: PESQUISA RÁPIDA ---
-        with col_pesquisa:
+        with c_busca:
             st.info("🔍 **Pesquisar Tema**")
-            num_busca = st.number_input("Digite o Nº do Tema:", min_value=1, step=1)
-            
+            num_busca = st.number_input("Nº do Tema:", min_value=1, step=1)
             if num_busca:
-                # Filtra histórico
                 encontrados = [h for h in db['historico'] if int(h['tema_numero']) == num_busca]
                 if encontrados:
-                    # Pega o mais recente
                     recente = max(encontrados, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
-                    dt_rec = datetime.strptime(recente['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                    
-                    st.markdown(f"""
-                    <div class="hist-alert hist-warning">
-                        ⚠️ ÚLTIMA VEZ: {dt_rec}<br>
-                        <small>{recente['tema_titulo']}</small>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    d_rec = datetime.strptime(recente['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    st.markdown(f"<div class='hist-alert hist-warning'>⚠️ ÚLTIMA VEZ: {d_rec}<br><small>{recente['tema_titulo']}</small></div>", unsafe_allow_html=True)
                 else:
-                    st.markdown("""
-                    <div class="hist-alert hist-ok">
-                        ✅ Nunca registrado no sistema.
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown("<div class='hist-alert hist-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
 
-        # --- COLUNA DIREITA: REGISTRAR NOVO ---
-        with col_registro:
+        with c_reg:
             with st.container(border=True):
                 st.write("#### ➕ Registrar Realização")
+                tema_hist = st.selectbox("Tema:", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
+                data_hist = st.date_input("Data:", format="DD/MM/YYYY")
                 
-                opcoes_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
-                tema_hist = st.selectbox("Selecione o Tema:", opcoes_temas)
-                data_hist = st.date_input("Data Realizada:", format="DD/MM/YYYY")
-                
-                if st.button("💾 Salvar no Histórico", use_container_width=True):
-                    # 1. Pega dados
+                if st.button("💾 Salvar Histórico", use_container_width=True):
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
                     data_str = data_hist.strftime("%Y-%m-%d")
                     
-                    # 2. Verifica se JÁ TINHA antes de salvar (para o aviso)
                     anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
-                    aviso_msg = ""
+                    aviso = ""
                     if anteriores:
                         rec = max(anteriores, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
-                        d_rec = datetime.strptime(rec['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                        aviso_msg = f"Atenção: A última vez foi em {d_rec}."
+                        aviso = f"A última vez foi em {datetime.strptime(rec['data'], '%Y-%m-%d').strftime('%d/%m/%Y')}."
                     
-                    # 3. Salva
-                    db['historico'].append({
-                        "tema_numero": num_t,
-                        "tema_titulo": tit_t,
-                        "data": data_str
-                    })
+                    db['historico'].append({"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str})
                     salvar_dados(db)
-                    
-                    # 4. Feedback
-                    st.success("Registro salvo!")
-                    if aviso_msg:
-                        st.warning(f"⚠️ {aviso_msg}")
-                    else:
-                        st.info("ℹ️ Primeira vez registrando este tema.")
-                    
-                    # Espera um pouco pra ler e recarrega
-                    # st.rerun() (Opcional: tirei pra mensagem ficar na tela)
+                    st.success("Salvo!")
+                    if aviso: st.warning(f"⚠️ {aviso}")
+                    else: st.info("ℹ️ Primeira vez deste tema.")
 
-        # TABELA COMPLETA EMBAIXO
         st.divider()
-        with st.expander("Ver Tabela Completa do Histórico"):
+        with st.expander("Ver Tabela Completa"):
             if db['historico']:
                 df_hist = pd.DataFrame(db['historico'])
                 df_hist['data'] = pd.to_datetime(df_hist['data'])
-                df_hist = df_hist.sort_values(by='data', ascending=False)
-                st.dataframe(df_hist, use_container_width=True)
-            else:
-                st.caption("Histórico vazio.")
+                st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True)
+            else: st.caption("Vazio.")
 
-    # --- ABA 3: ORADORES ---
+    # ABA 3: ORADORES
     with tab3:
-        st.subheader("Cadastro de Oradores")
+        st.subheader("Gerenciar Oradores")
         if db['oradores']:
             df = pd.DataFrame(db['oradores'])
-            df['temas_ids'] = df['temas_ids'].apply(lambda x: str(x).replace('[','').replace(']',''))
+            df['temas_ids'] = df['temas_ids'].apply(lambda x: f"{len(x)} temas")
             st.dataframe(df, use_container_width=True)
-        else: st.warning("Nenhum orador.")
-
+        else: st.warning("Vazio.")
+        
         st.divider()
-        col_add, col_edit = st.columns(2)
-
-        with col_add:
+        c_add, c_edit = st.columns(2)
+        with c_add:
             with st.container(border=True):
-                st.write("#### ➕ Adicionar Novo")
-                with st.form("new_orador"):
-                    n_nome = st.text_input("Nome")
-                    n_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
-                    all_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
-                    n_temas = st.multiselect("Temas Habilitados", all_temas)
+                st.write("#### ➕ Novo Orador")
+                with st.form("new_or"):
+                    nn = st.text_input("Nome")
+                    nc = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
+                    nt = st.multiselect("Temas", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
                     if st.form_submit_button("Salvar"):
-                        ids = [int(t.split(' - ')[0]) for t in n_temas]
-                        db['oradores'].append({"nome": n_nome, "cargo": n_cargo, "temas_ids": ids})
-                        salvar_dados(db)
-                        st.success("Adicionado!"); st.rerun()
-
-        with col_edit:
+                        ids = [int(t.split(' - ')[0]) for t in nt]
+                        db['oradores'].append({"nome": nn, "cargo": nc, "temas_ids": ids})
+                        salvar_dados(db); st.success("Salvo!"); st.rerun()
+        
+        with c_edit:
             with st.container(border=True):
-                st.write("#### ✏️ Editar / Excluir")
+                st.write("#### ✏️ Editar")
                 if db['oradores']:
-                    sel_nome = st.selectbox("Selecione:", [o['nome'] for o in db['oradores']])
-                    idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel_nome)
-                    dados = db['oradores'][idx]
-                    with st.form("edit_orador"):
-                        e_nome = st.text_input("Nome", value=dados['nome'])
-                        idx_c = ["Ancião", "Servo Ministerial", "Outro"].index(dados['cargo'])
-                        e_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=idx_c)
+                    sel = st.selectbox("Orador:", [o['nome'] for o in db['oradores']])
+                    idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel)
+                    dat = db['oradores'][idx]
+                    with st.form("ed_or"):
+                        en = st.text_input("Nome", value=dat['nome'])
+                        ec = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"], index=["Ancião", "Servo Ministerial", "Outro"].index(dat['cargo']))
                         all_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
-                        def_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dados['temas_ids']]
-                        e_temas = st.multiselect("Temas", all_t, default=def_t)
-                        c_up, c_del = st.columns(2)
-                        if c_up.form_submit_button("Atualizar"):
-                            ids = [int(t.split(' - ')[0]) for t in e_temas]
-                            db['oradores'][idx] = {"nome": e_nome, "cargo": e_cargo, "temas_ids": ids}
-                            salvar_dados(db)
-                            st.success("Salvo!"); st.rerun()
-                        if c_del.form_submit_button("Excluir", type="primary"):
+                        def_t = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dat['temas_ids']]
+                        et = st.multiselect("Temas", all_t, default=def_t)
+                        c1, c2 = st.columns(2)
+                        if c1.form_submit_button("Atualizar"):
+                            db['oradores'][idx] = {"nome": en, "cargo": ec, "temas_ids": [int(t.split(' - ')[0]) for t in et]}
+                            salvar_dados(db); st.success("Atualizado!"); st.rerun()
+                        if c2.form_submit_button("Excluir", type="primary"):
                             db['oradores'].pop(idx); salvar_dados(db); st.rerun()
 
 # ==========================================

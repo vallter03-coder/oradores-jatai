@@ -49,7 +49,6 @@ def carregar_dados():
         lista_oradores = []
         for row in dados_or:
             r = {k.lower().strip(): v for k, v in row.items()}
-            # Validação simples
             if 'nome' not in r or not r['nome'] or str(r['nome']).startswith('{'): continue
             
             ids = []
@@ -175,7 +174,7 @@ ICONES = {"Ancião": "🛡️", "Servo Ministerial": "💼", "Outro": "👤"}
 MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
 
 # ==========================================
-# 5. ÁREA PÚBLICA
+# 5. ÁREA PÚBLICA (CARDS COMPACTOS)
 # ==========================================
 def area_publica():
     st.markdown(f"""
@@ -243,19 +242,26 @@ def area_publica():
     
     for i, orador in enumerate(db['oradores']):
         with cols[i % 3]:
+            # CARD COMPACTO
             with st.container(border=True):
                 icone = ICONES.get(orador['cargo'], "👤")
-                st.markdown(f"#### {icone} {orador['nome']}")
-                st.caption(f"{orador['cargo']}")
-                st.markdown("---")
                 
+                # HTML CUSTOM: Nome na esquerda, Cargo na direita
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                    <div style="font-weight:bold; font-size:1.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{icone} {orador['nome']}</div>
+                    <div style="font-size:0.8rem; color:#aaa; white-space:nowrap; margin-left:5px;">{orador['cargo']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # DATA (Sem traço, label escondida para compactar)
                 d_pref = st.date_input("Data", value=data_padrao, min_value=hoje, format="DD/MM/YYYY", key=f"d_{i}", label_visibility="collapsed")
                 
                 temas_ids = orador.get('temas_ids', [])
                 tema_sel = None
                 
                 if temas_ids:
-                    st.markdown("**📖 Escolha o Tema:**")
+                    st.markdown("<div style='margin-top:8px; font-size:0.9em; font-weight:bold;'>📖 Escolha o Tema:</div>", unsafe_allow_html=True)
                     lista_t = [t for t in db['temas'] if t['numero'] in temas_ids]
                     lista_t.sort(key=lambda x: x['numero'])
                     opcoes = [f"{t['numero']} - {t['titulo']}" for t in lista_t]
@@ -276,10 +282,10 @@ def area_publica():
                     else: st.error("Escolha um tema!")
 
 # ==========================================
-# 6. ÁREA ADMIN (ATUALIZADA)
+# 6. ÁREA ADMIN
 # ==========================================
 def area_admin():
-    st.title("🔒 Painel de Controle") # <--- AQUI O TÍTULO NOVO
+    st.title("🔒 Painel de Controle")
     tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Gerenciar Oradores"])
     
     # --- PEDIDOS ---
@@ -298,7 +304,7 @@ def area_admin():
                         icone = ICONES.get(item['cargo'], "👤")
                         st.markdown(f"""<div class="admin-card"><div style="font-size:1.1em; font-weight:bold;">{icone} {item['orador']}</div><div>🗓️ <b>{dt_fmt}</b></div><div style="opacity:0.8">📖 {item['tema']}</div></div>""", unsafe_allow_html=True)
                         txt_zap += f"🗓️ *{dt_fmt}* - {icone} {item['orador']}\n📖 {item['tema']}\n\n"
-                    txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí." # <--- AQUI O TEXTO NOVO
+                    txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí."
                     
                     st.divider()
                     st.text_area("Copiar Mensagem:", txt_zap, height=250)
@@ -336,10 +342,8 @@ def area_admin():
                     salvar_historico_safe(item_h)
                     
                     anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
-                    if len(anteriores) > 1:
-                        st.warning("Salvo! (Já tinha registro anterior)")
-                    else:
-                        st.success("Salvo! Primeira vez deste tema.")
+                    if len(anteriores) > 1: st.warning("Salvo! (Já tinha registro anterior)")
+                    else: st.success("Salvo! Primeira vez deste tema.")
         st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
@@ -385,7 +389,6 @@ def area_admin():
                     sel_nome = st.selectbox("Selecione o Orador para Editar:", lista_nomes)
                     idx = next(i for i, o in enumerate(db['oradores']) if o['nome'] == sel_nome)
                     dados = db['oradores'][idx]
-                    
                     with st.form("edit_form"):
                         c1, c2 = st.columns(2)
                         e_nome = c1.text_input("Nome", value=dados['nome'])
@@ -402,7 +405,6 @@ def area_admin():
                             db['oradores'][idx] = novos_dados
                             atualizar_orador_safe(dados['nome'], novos_dados)
                             st.success("Dados Atualizados!"); time.sleep(1); st.rerun()
-                            
                         if col_del.form_submit_button("🗑️ Excluir Orador", type="primary"):
                             excluir_orador_safe(dados['nome'])
                             db['oradores'].pop(idx)

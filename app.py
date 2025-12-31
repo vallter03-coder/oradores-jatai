@@ -39,7 +39,6 @@ def carregar_dados():
         client = conectar_gsheets()
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
-        # Oradores
         ws_oradores = sh.worksheet("oradores")
         raw_oradores = ws_oradores.get_all_records()
         oradores_fmt = []
@@ -50,7 +49,6 @@ def carregar_dados():
                 except: pass
             oradores_fmt.append({"nome": row['nome'], "cargo": row['cargo'], "temas_ids": ids})
 
-        # Temas, Solicitações e Histórico
         temas = sh.worksheet("temas").get_all_records()
         try: solicitacoes = sh.worksheet("solicitacoes").get_all_records()
         except: solicitacoes = []
@@ -65,7 +63,7 @@ def carregar_dados():
 def salvar_dados(dados):
     try:
         client = conectar_gsheets()
-        # Backup JSON
+        # Backup JSON na primeira aba
         try: client.open(NOME_PLANILHA_GOOGLE).sheet1.update_acell('A1', json.dumps(dados, ensure_ascii=False))
         except: pass
         
@@ -82,7 +80,6 @@ def salvar_dados(dados):
         except: pass
     except: pass
 
-# Sessão
 if 'db' not in st.session_state: st.session_state['db'] = carregar_dados()
 db = st.session_state['db']
 if 'carrinho' not in st.session_state: st.session_state['carrinho'] = []
@@ -90,67 +87,75 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 3. CSS ADAPTATIVO (CLARO / ESCURO)
+# 3. CSS DARK MODE (VISUAL ESCURO)
 # ==========================================
 st.markdown("""
 <style>
-    /* USANDO VARIÁVEIS NATIVAS DO STREAMLIT 
-       --primary-color, --background-color, --secondary-background-color, --text-color 
-    */
+    /* Forçar Fundo Escuro Global */
+    .stApp {
+        background-color: #0E1117;
+        color: #FAFAFA;
+    }
 
-    /* Ajuste dos Cards (Containers com borda) */
+    /* Cards (Containers) em Cinza Escuro */
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: var(--secondary-background-color); /* Adapta ao tema */
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        border-radius: 10px;
+        background-color: #262730;
+        border: 1px solid #41444C;
+        border-radius: 8px;
         padding: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    /* Botões Principais (Azul Marca) */
-    div.stButton > button {
-        background-color: #004E8C; 
-        color: white; 
-        border-radius: 8px; 
-        font-weight: bold;
-        border: none;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        background-color: #003366;
-        color: white; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     
-    /* Inputs e Selectbox */
+    /* Inputs Escuros */
     .stTextInput input, .stSelectbox div, .stDateInput input, .stNumberInput input {
-        border-radius: 5px;
+        background-color: #1C1E26 !important;
+        color: white !important;
+        border: 1px solid #464B5C !important;
+    }
+    
+    /* Sidebar Escura */
+    [data-testid="stSidebar"] {
+        background-color: #262730;
+        border-right: 1px solid #41444C;
     }
 
-    /* Títulos - Mantendo azul da marca, mas legível */
-    h1, h2, h3, h4 {
-        color: #004E8C !important;
+    /* Títulos em Azul Claro (Melhor contraste no escuro) */
+    h1, h2, h3, h4, h5 {
+        color: #5D9CEC !important;
         font-family: 'Segoe UI', sans-serif;
     }
-    
-    /* Card Admin (Usando transparência para funcionar no escuro) */
-    .admin-card { 
-        background-color: rgba(0, 78, 140, 0.1); /* Azul bem clarinho transparente */
-        padding: 12px; 
-        border-radius: 8px; 
-        border-left: 5px solid #004E8C; 
-        margin-bottom: 10px; 
+
+    /* Texto Geral */
+    p, label, span, div {
+        color: #E0E0E0;
     }
     
-    /* Alertas do Histórico */
+    /* Botões */
+    div.stButton > button {
+        background-color: #4da6ff; /* Azul mais vivo */
+        color: white; 
+        border-radius: 6px; 
+        font-weight: bold;
+        border: none;
+    }
+    div.stButton > button:hover {
+        background-color: #0073e6;
+    }
+
+    /* Card Admin no Modo Escuro */
+    .admin-card {
+        background-color: #323542;
+        padding: 10px;
+        border-radius: 5px;
+        border-left: 5px solid #5D9CEC;
+        margin-bottom: 10px;
+    }
+    
+    /* Alertas do Histórico (Cores adaptadas para fundo escuro) */
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
-    .hist-ok { background-color: rgba(40, 167, 69, 0.2); color: #28a745; border: 1px solid #28a745; }
-    .hist-warning { background-color: rgba(255, 193, 7, 0.2); color: #d39e00; border: 1px solid #d39e00; }
-    
-    /* Texto pequeno */
-    small, .caption {
-        opacity: 0.8;
-    }
+    .hist-ok { background-color: #1e4d2b; color: #d4edda; border: 1px solid #155724; }
+    .hist-warning { background-color: #533f03; color: #fff3cd; border: 1px solid #856404; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -231,13 +236,7 @@ def area_publica():
         if st.session_state['carrinho']:
             for idx, item in enumerate(st.session_state['carrinho']):
                 d_fmt = datetime.strptime(item['data'], '%Y-%m-%d').strftime('%d/%m')
-                # Card do Carrinho (Adaptativo)
-                st.markdown(f"""
-                <div style='background-color: var(--secondary-background-color); padding:10px; border-radius:5px; border-left:4px solid #004E8C; margin-bottom:5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                    <b>{d_fmt}</b> - {item['orador']}<br>
-                    <small>📖 {item['tema']}</small>
-                </div>""", unsafe_allow_html=True)
-                
+                st.markdown(f"<div style='background-color: #323542; padding:10px; border-left:4px solid #5D9CEC; margin-bottom:5px;'><b>{d_fmt}</b> - {item['orador']}<br><small>📖 {item['tema']}</small></div>", unsafe_allow_html=True)
                 if st.button("Remover", key=f"rem_{idx}"):
                     st.session_state['carrinho'].pop(idx); st.rerun()
             st.divider()
@@ -263,7 +262,6 @@ def area_admin():
     st.title("🔒 Painel do Coordenador")
     tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Oradores"])
     
-    # ABA 1: PEDIDOS
     with tab1:
         if not db['solicitacoes']: 
             st.info("Nenhum pedido na lista.")
@@ -301,7 +299,6 @@ def area_admin():
                         salvar_dados(db)
                         st.rerun()
 
-    # ABA 2: HISTÓRICO
     with tab2:
         st.subheader("📜 Histórico da Congregação")
         c_busca, c_reg = st.columns([1, 1.5], gap="large")
@@ -328,7 +325,6 @@ def area_admin():
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
                     data_str = data_hist.strftime("%Y-%m-%d")
-                    
                     anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
                     aviso = ""
                     if anteriores:
@@ -349,7 +345,6 @@ def area_admin():
                 st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True)
             else: st.caption("Vazio.")
 
-    # ABA 3: ORADORES
     with tab3:
         st.subheader("Gerenciar Oradores")
         if db['oradores']:
@@ -359,20 +354,20 @@ def area_admin():
         else: st.warning("Vazio.")
         
         st.divider()
-        c_add, c_edit = st.columns(2)
-        with c_add:
+        col_add, col_edit = st.columns(2)
+        with col_add:
             with st.container(border=True):
                 st.write("#### ➕ Novo Orador")
                 with st.form("new_or"):
-                    nn = st.text_input("Nome")
-                    nc = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
+                    n_nome = st.text_input("Nome")
+                    n_cargo = st.selectbox("Cargo", ["Ancião", "Servo Ministerial", "Outro"])
                     nt = st.multiselect("Temas", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
                     if st.form_submit_button("Salvar"):
                         ids = [int(t.split(' - ')[0]) for t in nt]
-                        db['oradores'].append({"nome": nn, "cargo": nc, "temas_ids": ids})
+                        db['oradores'].append({"nome": n_nome, "cargo": n_cargo, "temas_ids": ids})
                         salvar_dados(db); st.success("Salvo!"); st.rerun()
         
-        with c_edit:
+        with col_edit:
             with st.container(border=True):
                 st.write("#### ✏️ Editar")
                 if db['oradores']:

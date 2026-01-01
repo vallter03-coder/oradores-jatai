@@ -6,6 +6,8 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import time
+# BIBLIOTECA PARA O BOTÃO DE COPIAR
+from st_copy_to_clipboard import st_copy_to_clipboard
 
 # ==========================================
 # 1. CONFIGURAÇÕES
@@ -206,14 +208,20 @@ def area_publica():
         <div style="font-size:0.9em; margin-bottom:10px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>
         """, unsafe_allow_html=True)
         
-        col_btn, col_txt = st.columns([1, 1.5])
+        col_btn, col_copy = st.columns([1, 1.5])
         with col_btn:
             st.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
-        with col_txt:
-            # st.code com language=None cria uma caixa com botão de copiar embutido
-            convite = f"🏛️ *Salão do Reino - Cong. Parque Jataí*\n📍 {ENDERECO_SALAO}\n\n🕒 *Reunião:* {HORARIO_REUNIAO}\n🗺️ *Localização:* {LINK_MAPS}"
-            st.caption("Copie o convite abaixo (clique no ícone 📋):")
-            st.code(convite, language=None)
+        
+        with col_copy:
+            # === MODIFICAÇÃO 1: Botão de Copiar ===
+            mensagem_zap = f"""🏛️ *Salão do Reino - Cong. Parque Jataí*
+📍 {ENDERECO_SALAO}
+
+🕒 *Reunião:* {HORARIO_REUNIAO}
+🗺️ *Localização:* {LINK_MAPS}"""
+            
+            # O texto fica escondido, só o botão aparece
+            st_copy_to_clipboard(mensagem_zap, "📋 Copiar Convite para WhatsApp")
     
     st.title("Solicitação de Oradores")
 
@@ -259,6 +267,19 @@ def area_publica():
                 st.session_state['carrinho'] = []
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
+    
+    # === MODIFICAÇÃO 2: Visualização de Temas Bloqueados na tela pública ===
+    # Verifica se existem bloqueios no DB e mostra para o usuário não escolher errado
+    if db.get('bloqueios'):
+        st.divider()
+        st.subheader("🚫 Temas Bloqueados / Recentes")
+        st.write("Estes temas **não devem ser solicitados** pois já foram designados recentemente:")
+        
+        for b in db['bloqueios']:
+            # Pega o tema e data (se existir)
+            tema_nome = b.get('tema', '')
+            st.warning(f"🔒 {tema_nome}")
+        st.divider()
 
     if not db['oradores']:
         st.warning("Nenhum orador cadastrado.")

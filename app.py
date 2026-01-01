@@ -40,17 +40,12 @@ def carregar_dados():
         sh = client.open(NOME_PLANILHA_GOOGLE)
         
         # --- ORADORES ---
-        try: 
-            ws_oradores = sh.worksheet("oradores")
-            dados_or = ws_oradores.get_all_records()
-        except: 
-            dados_or = []
-            
+        try: ws_oradores = sh.worksheet("oradores"); dados_or = ws_oradores.get_all_records()
+        except: dados_or = []
         lista_oradores = []
         for row in dados_or:
             r = {k.lower().strip(): v for k, v in row.items()}
             if 'nome' not in r or not r['nome'] or str(r['nome']).startswith('{'): continue
-            
             ids = []
             if str(r.get('temas_ids', '')).strip():
                 try: ids = [int(x.strip()) for x in str(r['temas_ids']).split(',') if x.strip().isdigit()]
@@ -62,6 +57,12 @@ def carregar_dados():
         except: temas = []
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
+        
+        # --- BLOQUEIOS (NOVO) ---
+        try: 
+            bloqueios = sh.worksheet("bloqueios").get_all_records()
+        except: 
+            bloqueios = []
 
         # --- SOLICITAÇÕES ---
         lista_solicitacoes = []
@@ -71,14 +72,14 @@ def carregar_dados():
             if len(rows) > 1:
                 for i in range(1, len(rows)):
                     try:
-                        json_str = rows[i][1] # Coluna B
+                        json_str = rows[i][1]
                         lista_solicitacoes.append(json.loads(json_str))
                     except: pass
         except: pass
 
-        return {"oradores": lista_oradores, "temas": temas, "solicitacoes": lista_solicitacoes, "historico": historico}
+        return {"oradores": lista_oradores, "temas": temas, "solicitacoes": lista_solicitacoes, "historico": historico, "bloqueios": bloqueios}
     except Exception as e:
-        return {"oradores": [], "temas": [], "solicitacoes": [], "historico": []}
+        return {"oradores": [], "temas": [], "solicitacoes": [], "historico": [], "bloqueios": []}
 
 # ==========================================
 # 3. FUNÇÕES DE ESCRITA (SEGURAS)
@@ -111,18 +112,14 @@ def excluir_orador_safe(nome):
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
         cell = ws.find(nome)
-        if cell and cell.row > 1:
-            ws.delete_rows(cell.row)
-            return True
+        if cell and cell.row > 1: ws.delete_rows(cell.row); return True
     except: return False
 
 def salvar_solicitacao_safe(nova_solic):
     try:
         client = conectar_gsheets()
         try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
-        except: 
-            ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("solicitacoes", 100, 2)
-            ws.append_row(["id", "json_data"])
+        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("solicitacoes", 100, 2); ws.append_row(["id", "json_data"])
         ws.append_row([nova_solic['id'], json.dumps(nova_solic, ensure_ascii=False)])
     except: pass
 
@@ -139,6 +136,22 @@ def excluir_pedido_safe(id_ped):
         client = conectar_gsheets()
         ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
         cell = ws.find(str(id_ped))
+        if cell: ws.delete_rows(cell.row)
+    except: pass
+
+def salvar_bloqueio_safe(tema_nome):
+    try:
+        client = conectar_gsheets()
+        try: ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("bloqueios")
+        except: ws = client.open(NOME_PLANILHA_GOOGLE).add_worksheet("bloqueios", 100, 2); ws.append_row(["tema", "data"])
+        ws.append_row([tema_nome, datetime.now().strftime("%Y-%m-%d")])
+    except: pass
+
+def remover_bloqueio_safe(tema_nome):
+    try:
+        client = conectar_gsheets()
+        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("bloqueios")
+        cell = ws.find(tema_nome)
         if cell: ws.delete_rows(cell.row)
     except: pass
 
@@ -173,12 +186,8 @@ st.markdown("""
     /* Botão Link */
     a[data-testid="stLinkButton"] { background-color: #4CAF50 !important; color: white !important; border:none !important; font-weight:bold; }
     
-    /* Expander ajustado para parecer botão */
-    .streamlit-expanderHeader {
-        background-color: #262730;
-        border: 1px solid #4A4A4A;
-        border-radius: 5px;
-    }
+    /* Bloco Vermelho para Bloqueios */
+    .block-card { background-color: #3e1212; border: 1px solid #8a2be2; border-left: 5px solid #ff4444; padding: 10px; margin-bottom: 5px; border-radius: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -189,7 +198,7 @@ MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, 
 # 5. ÁREA PÚBLICA
 # ==========================================
 def area_publica():
-    # --- CABEÇALHO COM BOTÕES ALINHADOS PARA MOBILE ---
+    # --- CABEÇALHO ---
     with st.container(border=True):
         st.markdown(f"""
         <div style="font-size:1.1em; font-weight:bold; color:#5D9CEC;">📍 Congregação Parque Jataí</div>
@@ -197,17 +206,14 @@ def area_publica():
         <div style="font-size:0.9em; margin-bottom:10px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>
         """, unsafe_allow_html=True)
         
-        # Botões em linha (Colunas [1,1])
-        c_map, c_copy = st.columns([1, 1])
-        
-        with c_map:
+        col_btn, col_txt = st.columns([1, 1.5])
+        with col_btn:
             st.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
-            
-        with c_copy:
-            # Usando Expander pois é 100% compatível (Popover pode falhar em versões antigas)
-            with st.expander("📋 Copiar Convite", expanded=False):
-                convite = f"🏛️ *Salão do Reino - Cong. Parque Jataí*\n📍 {ENDERECO_SALAO}\n\n🕒 *Reunião:* {HORARIO_REUNIAO}\n🗺️ *Localização:* {LINK_MAPS}"
-                st.code(convite, language=None)
+        with col_txt:
+            # st.code com language=None cria uma caixa com botão de copiar embutido
+            convite = f"🏛️ *Salão do Reino - Cong. Parque Jataí*\n📍 {ENDERECO_SALAO}\n\n🕒 *Reunião:* {HORARIO_REUNIAO}\n🗺️ *Localização:* {LINK_MAPS}"
+            st.caption("Copie o convite abaixo (clique no ícone 📋):")
+            st.code(convite, language=None)
     
     st.title("Solicitação de Oradores")
 
@@ -289,8 +295,9 @@ def area_publica():
 # ==========================================
 def area_admin():
     st.title("🔒 Painel de Controle")
-    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Gerenciar Oradores"])
+    tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico/Bloqueios", "👥 Gerenciar Oradores"])
     
+    # --- PEDIDOS ---
     with tab1:
         if not db['solicitacoes']: 
             st.info("Nenhum pedido na lista.")
@@ -309,22 +316,47 @@ def area_admin():
                     txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí."
                     
                     st.divider()
-                    st.text_area("Prévia da Mensagem:", txt_zap, height=150)
-                    
-                    # --- BOTÕES LADO A LADO ---
-                    c_copiar, c_excluir = st.columns(2)
-                    
-                    with c_copiar:
-                        with st.expander("📋 Copiar Texto", expanded=False):
-                            st.code(txt_zap, language=None)
+                    st.caption("Texto para WhatsApp (Clique no ícone no canto para copiar):")
+                    st.code(txt_zap, language=None)
                         
-                    if c_excluir.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary", use_container_width=True):
+                    if st.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary", use_container_width=True):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
                         excluir_pedido_safe(solic['id'])
                         st.rerun()
 
+    # --- HISTÓRICO E BLOQUEIOS ---
     with tab2:
-        st.subheader("📜 Histórico da Congregação")
+        # Seção 1: BLOQUEIOS (NOVO)
+        st.subheader("🚫 Temas a Não Escolher (Bloqueados)")
+        st.caption("Adicione aqui temas que não devem ser feitos (ex: feitos recentemente).")
+        
+        with st.container(border=True):
+            # Form para adicionar
+            todos_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
+            novo_bloqueio = st.selectbox("Selecione o tema para bloquear:", ["-- Selecione --"] + todos_temas)
+            
+            if st.button("Bloquear Tema", use_container_width=True):
+                if novo_bloqueio != "-- Selecione --":
+                    db['bloqueios'].append({"tema": novo_bloqueio, "data": str(date.today())})
+                    salvar_bloqueio_safe(novo_bloqueio)
+                    st.success("Bloqueado!"); st.rerun()
+            
+            st.divider()
+            st.write("##### 📋 Lista de Bloqueios Ativos")
+            if db['bloqueios']:
+                for b in db['bloqueios']:
+                    c_txt, c_btn = st.columns([4, 1])
+                    c_txt.markdown(f"<div class='block-card'>🚫 {b['tema']}</div>", unsafe_allow_html=True)
+                    if c_btn.button("X", key=f"rm_b_{b['tema']}"):
+                        remover_bloqueio_safe(b['tema'])
+                        st.rerun()
+            else:
+                st.info("Nenhum tema bloqueado no momento.")
+
+        st.divider()
+        
+        # Seção 2: HISTÓRICO NORMAL
+        st.subheader("📜 Histórico de Realizações")
         c_busca, c_reg = st.columns([1, 1.5], gap="large")
         with c_busca:
             st.info("🔍 **Pesquisar Tema**")
@@ -351,7 +383,6 @@ def area_admin():
                     anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
                     if len(anteriores) > 1: st.warning("Salvo! (Já tinha registro anterior)")
                     else: st.success("Salvo! Primeira vez deste tema.")
-        st.divider()
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
                 df_hist = pd.DataFrame(db['historico'])

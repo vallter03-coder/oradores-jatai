@@ -172,6 +172,13 @@ st.markdown("""
     
     /* Botão Link */
     a[data-testid="stLinkButton"] { background-color: #4CAF50 !important; color: white !important; border:none !important; font-weight:bold; }
+    
+    /* Expander ajustado para parecer botão */
+    .streamlit-expanderHeader {
+        background-color: #262730;
+        border: 1px solid #4A4A4A;
+        border-radius: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -182,16 +189,24 @@ MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, 
 # 5. ÁREA PÚBLICA
 # ==========================================
 def area_publica():
+    # --- CABEÇALHO COM BOTÕES ALINHADOS PARA MOBILE ---
     with st.container(border=True):
-        c_info_txt, c_info_btns = st.columns([1.5, 1])
-        with c_info_txt:
-            st.markdown(f"""<div style="font-size:1.1em; font-weight:bold; color:#5D9CEC;">📍 Congregação Parque Jataí</div><div style="font-size:0.9em; margin-bottom:5px;">{ENDERECO_SALAO}</div><div style="font-size:0.9em;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>""", unsafe_allow_html=True)
-        with c_info_btns:
-            st.write("")
-            col_map, col_copy = st.columns(2)
-            col_map.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
-            convite = f"🏛️ *Salão do Reino - Cong. Parque Jataí*\n📍 {ENDERECO_SALAO}\n\n🕒 *Reunião:* {HORARIO_REUNIAO}\n🗺️ *Localização:* {LINK_MAPS}"
-            with col_copy.popover("📋 Copiar", use_container_width=True):
+        st.markdown(f"""
+        <div style="font-size:1.1em; font-weight:bold; color:#5D9CEC;">📍 Congregação Parque Jataí</div>
+        <div style="font-size:0.9em; margin-bottom:5px;">{ENDERECO_SALAO}</div>
+        <div style="font-size:0.9em; margin-bottom:10px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>
+        """, unsafe_allow_html=True)
+        
+        # Botões em linha (Colunas [1,1])
+        c_map, c_copy = st.columns([1, 1])
+        
+        with c_map:
+            st.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
+            
+        with c_copy:
+            # Usando Expander pois é 100% compatível (Popover pode falhar em versões antigas)
+            with st.expander("📋 Copiar Convite", expanded=False):
+                convite = f"🏛️ *Salão do Reino - Cong. Parque Jataí*\n📍 {ENDERECO_SALAO}\n\n🕒 *Reunião:* {HORARIO_REUNIAO}\n🗺️ *Localização:* {LINK_MAPS}"
                 st.code(convite, language=None)
     
     st.title("Solicitação de Oradores")
@@ -294,13 +309,14 @@ def area_admin():
                     txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí."
                     
                     st.divider()
-                    st.text_area("Prévia da Mensagem (pode editar):", txt_zap, height=150)
+                    st.text_area("Prévia da Mensagem:", txt_zap, height=150)
                     
-                    # BOTÕES DE AÇÃO (LADO A LADO)
+                    # --- BOTÕES LADO A LADO ---
                     c_copiar, c_excluir = st.columns(2)
                     
-                    with c_copiar.popover("📋 Copiar Texto", use_container_width=True):
-                        st.code(txt_zap, language=None)
+                    with c_copiar:
+                        with st.expander("📋 Copiar Texto", expanded=False):
+                            st.code(txt_zap, language=None)
                         
                     if c_excluir.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary", use_container_width=True):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]

@@ -60,7 +60,7 @@ def carregar_dados():
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
         
-        # --- BLOQUEIOS (NOVO) ---
+        # --- BLOQUEIOS ---
         try: 
             bloqueios = sh.worksheet("bloqueios").get_all_records()
         except: 
@@ -165,15 +165,27 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 4. ESTILO DARK MODE
+# 4. ESTILO DARK MODE + FIX MOBILE SCROLL
 # ==========================================
 st.markdown("""
 <style>
     :root { --primary: #5D9CEC; --bg: #0E1117; --sec-bg: #262730; --text: #FAFAFA; }
     .stApp { background-color: #0E1117; color: #FAFAFA; }
     div[data-testid="stVerticalBlockBorderWrapper"] { background-color: #262730; border: 1px solid #4A4A4A; border-radius: 8px; padding: 15px; }
+    
+    /* INPUTS */
     .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input { color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important; }
-    div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] { background-color: #262730 !important; color: white !important; }
+    
+    /* DROPDOWN MENU FIX - MOBILE SCROLL */
+    div[data-baseweb="menu"] { 
+        background-color: #262730 !important; 
+        color: white !important;
+        max-height: 300px !important; 
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important; /* Importante para iPhone/Android */
+    }
+    div[data-baseweb="popover"], div[role="listbox"] { background-color: #262730 !important; color: white !important; }
+
     div.stButton > button { background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold; }
     h1, h2, h3, h4, p, li, label, div { color: #E0E0E0; }
     
@@ -208,20 +220,21 @@ def area_publica():
         <div style="font-size:0.9em; margin-bottom:10px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>
         """, unsafe_allow_html=True)
         
-        col_btn, col_copy = st.columns([1, 1.5])
+        # Colunas ajustadas para o botão aparecer bem
+        col_btn, col_copy = st.columns(2)
         with col_btn:
             st.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
         
         with col_copy:
-            # === MODIFICAÇÃO 1: Botão de Copiar ===
+            # TEXTO FORMATADO PARA O WHATSAPP
             mensagem_zap = f"""🏛️ *Salão do Reino - Cong. Parque Jataí*
 📍 {ENDERECO_SALAO}
 
 🕒 *Reunião:* {HORARIO_REUNIAO}
 🗺️ *Localização:* {LINK_MAPS}"""
             
-            # O texto fica escondido, só o botão aparece
-            st_copy_to_clipboard(mensagem_zap, "📋 Copiar Convite para WhatsApp")
+            # Botão de Copiar (Sem mostrar o texto na tela)
+            st_copy_to_clipboard(mensagem_zap, "📋 Copiar Convite")
     
     st.title("Solicitação de Oradores")
 
@@ -268,15 +281,13 @@ def area_publica():
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
     
-    # === MODIFICAÇÃO 2: Visualização de Temas Bloqueados na tela pública ===
-    # Verifica se existem bloqueios no DB e mostra para o usuário não escolher errado
+    # VISUALIZAÇÃO DE BLOQUEIOS (CORRIGIDO PARA EXIBIR)
     if db.get('bloqueios'):
         st.divider()
         st.subheader("🚫 Temas Bloqueados / Recentes")
         st.write("Estes temas **não devem ser solicitados** pois já foram designados recentemente:")
         
         for b in db['bloqueios']:
-            # Pega o tema e data (se existir)
             tema_nome = b.get('tema', '')
             st.warning(f"🔒 {tema_nome}")
         st.divider()
@@ -337,8 +348,8 @@ def area_admin():
                     txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí."
                     
                     st.divider()
-                    st.caption("Texto para WhatsApp (Clique no ícone no canto para copiar):")
-                    st.code(txt_zap, language=None)
+                    st.caption("Texto para WhatsApp:")
+                    st_copy_to_clipboard(txt_zap, "📋 Copiar Confirmação")
                         
                     if st.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary", use_container_width=True):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
@@ -347,7 +358,7 @@ def area_admin():
 
     # --- HISTÓRICO E BLOQUEIOS ---
     with tab2:
-        # Seção 1: BLOQUEIOS (NOVO)
+        # Seção 1: BLOQUEIOS
         st.subheader("🚫 Temas a Não Escolher (Bloqueados)")
         st.caption("Adicione aqui temas que não devem ser feitos (ex: feitos recentemente).")
         
@@ -365,11 +376,16 @@ def area_admin():
             st.divider()
             st.write("##### 📋 Lista de Bloqueios Ativos")
             if db['bloqueios']:
-                for b in db['bloqueios']:
+                # Iterar sobre uma cópia da lista para não dar erro ao remover
+                for b in list(db['bloqueios']):
                     c_txt, c_btn = st.columns([4, 1])
                     c_txt.markdown(f"<div class='block-card'>🚫 {b['tema']}</div>", unsafe_allow_html=True)
                     if c_btn.button("X", key=f"rm_b_{b['tema']}"):
+                        # 1. Remove do Banco de Dados
                         remover_bloqueio_safe(b['tema'])
+                        # 2. Remove da Memória do Site (CORREÇÃO AQUI)
+                        db['bloqueios'] = [x for x in db['bloqueios'] if x['tema'] != b['tema']]
+                        # 3. Recarrega a tela
                         st.rerun()
             else:
                 st.info("Nenhum tema bloqueado no momento.")

@@ -6,7 +6,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import time
-# BIBLIOTECA PARA O BOTÃO DE COPIAR
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # ==========================================
@@ -23,7 +22,30 @@ except: pass
 st.set_page_config(page_title="Solicitação de Oradores", layout="wide", page_icon="📝")
 
 # ==========================================
-# 2. CONEXÃO
+# 2. FUNÇÕES ÚTEIS (CÁLCULO DE DIAS)
+# ==========================================
+def calcular_tempo_relativo(data_str):
+    """Retorna uma string dizendo 'há X dias' ou 'daqui a X dias'"""
+    try:
+        hoje = date.today()
+        dt_evento = datetime.strptime(data_str, "%Y-%m-%d").date()
+        diferenca = (hoje - dt_evento).days
+
+        if diferenca == 0:
+            return "(Hoje)"
+        elif diferenca == 1:
+            return "(Ontem)"
+        elif diferenca > 1:
+            return f"(há {diferenca} dias)"
+        elif diferenca == -1:
+            return "(Amanhã)"
+        else:
+            return f"(daqui a {abs(diferenca)} dias)"
+    except:
+        return ""
+
+# ==========================================
+# 3. CONEXÃO
 # ==========================================
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -59,12 +81,8 @@ def carregar_dados():
         except: temas = []
         try: historico = sh.worksheet("historico").get_all_records()
         except: historico = []
-        
-        # --- BLOQUEIOS ---
-        try: 
-            bloqueios = sh.worksheet("bloqueios").get_all_records()
-        except: 
-            bloqueios = []
+        try: bloqueios = sh.worksheet("bloqueios").get_all_records()
+        except: bloqueios = []
 
         # --- SOLICITAÇÕES ---
         lista_solicitacoes = []
@@ -84,36 +102,30 @@ def carregar_dados():
         return {"oradores": [], "temas": [], "solicitacoes": [], "historico": [], "bloqueios": []}
 
 # ==========================================
-# 3. FUNÇÕES DE ESCRITA (SEGURAS)
+# 4. FUNÇÕES DE ESCRITA
 # ==========================================
-
+# (Mantendo as mesmas funções seguras de antes)
 def adicionar_orador_safe(novo_orador):
     try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        client = conectar_gsheets(); ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
         ids_str = str(novo_orador['temas_ids']).replace('[','').replace(']','')
-        ws.append_row([novo_orador['nome'], novo_orador['cargo'], ids_str])
-        return True
+        ws.append_row([novo_orador['nome'], novo_orador['cargo'], ids_str]); return True
     except: return False
 
 def atualizar_orador_safe(nome_antigo, dados_novos):
     try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        client = conectar_gsheets(); ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
         cell = ws.find(nome_antigo)
         if cell:
             ids_str = str(dados_novos['temas_ids']).replace('[','').replace(']','')
-            ws.update_cell(cell.row, 1, dados_novos['nome'])
-            ws.update_cell(cell.row, 2, dados_novos['cargo'])
-            ws.update_cell(cell.row, 3, ids_str)
+            ws.update_cell(cell.row, 1, dados_novos['nome']); ws.update_cell(cell.row, 2, dados_novos['cargo']); ws.update_cell(cell.row, 3, ids_str)
             return True
     except: return False
 
 def excluir_orador_safe(nome):
     try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
-        cell = ws.find(nome)
+        client = conectar_gsheets(); ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("oradores")
+        cell = ws.find(nome); 
         if cell and cell.row > 1: ws.delete_rows(cell.row); return True
     except: return False
 
@@ -135,9 +147,8 @@ def salvar_historico_safe(novo_hist):
 
 def excluir_pedido_safe(id_ped):
     try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
-        cell = ws.find(str(id_ped))
+        client = conectar_gsheets(); ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("solicitacoes")
+        cell = ws.find(str(id_ped)); 
         if cell: ws.delete_rows(cell.row)
     except: pass
 
@@ -151,9 +162,8 @@ def salvar_bloqueio_safe(tema_nome):
 
 def remover_bloqueio_safe(tema_nome):
     try:
-        client = conectar_gsheets()
-        ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("bloqueios")
-        cell = ws.find(tema_nome)
+        client = conectar_gsheets(); ws = client.open(NOME_PLANILHA_GOOGLE).worksheet("bloqueios")
+        cell = ws.find(tema_nome); 
         if cell: ws.delete_rows(cell.row)
     except: pass
 
@@ -165,43 +175,57 @@ if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'mostrar_login' not in st.session_state: st.session_state['mostrar_login'] = False
 
 # ==========================================
-# 4. ESTILO DARK MODE + FIX MOBILE SCROLL
+# 5. CSS (ESTILO DARK MODE + CORREÇÕES)
 # ==========================================
 st.markdown("""
 <style>
     :root { --primary: #5D9CEC; --bg: #0E1117; --sec-bg: #262730; --text: #FAFAFA; }
     .stApp { background-color: #0E1117; color: #FAFAFA; }
+    
+    /* BLOCOS DE FUNDO */
     div[data-testid="stVerticalBlockBorderWrapper"] { background-color: #262730; border: 1px solid #4A4A4A; border-radius: 8px; padding: 15px; }
     
     /* INPUTS */
     .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input { color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important; }
     
+    /* BOTÕES GERAIS */
+    div.stButton > button { background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold; }
+    
+    /* --- CORREÇÃO DO BOTÃO DE COPIAR --- */
+    /* Como não controlamos o CSS interno do componente de copiar, usamos um truque */
+    /* Isso inverte as cores do botão de copiar (se for branco vira preto/escuro) e ajusta tamanho */
+    iframe[title="st_copy_to_clipboard.st_copy_to_clipboard"] {
+        height: 38px !important; /* Altura forçada compacta */
+        filter: invert(0.9) hue-rotate(180deg); /* Truque para escurecer o botão branco */
+        opacity: 0.9;
+        margin-top: 5px;
+    }
+
     /* DROPDOWN MENU FIX - MOBILE SCROLL */
     div[data-baseweb="menu"] { 
         background-color: #262730 !important; 
         color: white !important;
         max-height: 300px !important; 
         overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important; /* Importante para iPhone/Android */
+        -webkit-overflow-scrolling: touch !important; 
     }
     div[data-baseweb="popover"], div[role="listbox"] { background-color: #262730 !important; color: white !important; }
 
-    div.stButton > button { background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold; }
+    /* TEXTOS */
     h1, h2, h3, h4, p, li, label, div { color: #E0E0E0; }
     
-    .info-box { background-color: #1C1E26; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 0.9em; }
-    .map-btn { display: inline-block; background-color: #4CAF50; color: white !important; padding: 5px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 5px; }
-    
+    /* ALERTA HISTÓRICO */
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
     .hist-ok { background-color: #155724; color: #d4edda; border: 1px solid #155724; }
     .hist-warning { background-color: #856404; color: #fff3cd; border: 1px solid #856404; }
+    .hist-danger { background-color: #721c24; color: #f8d7da; border: 1px solid #f5c6cb; } /* Novo para bloqueio */
+    
+    /* CARTÕES */
     .admin-card { background-color: #323542; padding: 10px; border-left: 4px solid #5D9CEC; margin-bottom: 5px; border-radius: 4px; }
-    
-    /* Botão Link */
-    a[data-testid="stLinkButton"] { background-color: #4CAF50 !important; color: white !important; border:none !important; font-weight:bold; }
-    
-    /* Bloco Vermelho para Bloqueios */
     .block-card { background-color: #3e1212; border: 1px solid #8a2be2; border-left: 5px solid #ff4444; padding: 10px; margin-bottom: 5px; border-radius: 5px; }
+    
+    /* BOTÃO LINK (MAPA) */
+    a[data-testid="stLinkButton"] { background-color: #4CAF50 !important; color: white !important; border:none !important; font-weight:bold; height: 38px !important; padding-top: 8px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -209,7 +233,7 @@ ICONES = {"Ancião": "🛡️", "Servo Ministerial": "💼", "Outro": "👤"}
 MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
 
 # ==========================================
-# 5. ÁREA PÚBLICA
+# 6. ÁREA PÚBLICA
 # ==========================================
 def area_publica():
     # --- CABEÇALHO ---
@@ -220,20 +244,18 @@ def area_publica():
         <div style="font-size:0.9em; margin-bottom:10px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>
         """, unsafe_allow_html=True)
         
-        # Colunas ajustadas para o botão aparecer bem
-        col_btn, col_copy = st.columns(2)
-        with col_btn:
+        # Colunas ajustadas para ficar compacto (50% / 50%)
+        c_btn, c_copy = st.columns([1, 1], gap="small")
+        with c_btn:
             st.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
         
-        with col_copy:
-            # TEXTO FORMATADO PARA O WHATSAPP
+        with c_copy:
             mensagem_zap = f"""🏛️ *Salão do Reino - Cong. Parque Jataí*
 📍 {ENDERECO_SALAO}
 
 🕒 *Reunião:* {HORARIO_REUNIAO}
 🗺️ *Localização:* {LINK_MAPS}"""
-            
-            # Botão de Copiar (Sem mostrar o texto na tela)
+            # Botão de Copiar (Compacto via CSS)
             st_copy_to_clipboard(mensagem_zap, "📋 Copiar Convite")
     
     st.title("Solicitação de Oradores")
@@ -281,12 +303,11 @@ def area_publica():
                 st.success("Pedido Enviado com Sucesso!"); st.balloons()
         st.markdown("---")
     
-    # VISUALIZAÇÃO DE BLOQUEIOS (CORRIGIDO PARA EXIBIR)
+    # VISUALIZAÇÃO DE BLOQUEIOS
     if db.get('bloqueios'):
         st.divider()
         st.subheader("🚫 Temas Bloqueados / Recentes")
         st.write("Estes temas **não devem ser solicitados** pois já foram designados recentemente:")
-        
         for b in db['bloqueios']:
             tema_nome = b.get('tema', '')
             st.warning(f"🔒 {tema_nome}")
@@ -323,7 +344,7 @@ def area_publica():
                     else: st.error("Escolha um tema!")
 
 # ==========================================
-# 6. ÁREA ADMIN
+# 7. ÁREA ADMIN
 # ==========================================
 def area_admin():
     st.title("🔒 Painel de Controle")
@@ -348,8 +369,9 @@ def area_admin():
                     txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí."
                     
                     st.divider()
-                    st.caption("Texto para WhatsApp:")
-                    st_copy_to_clipboard(txt_zap, "📋 Copiar Confirmação")
+                    col_copy_admin, _ = st.columns([1,2])
+                    with col_copy_admin:
+                        st_copy_to_clipboard(txt_zap, "📋 Copiar Confirmação")
                         
                     if st.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary", use_container_width=True):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
@@ -358,12 +380,8 @@ def area_admin():
 
     # --- HISTÓRICO E BLOQUEIOS ---
     with tab2:
-        # Seção 1: BLOQUEIOS
         st.subheader("🚫 Temas a Não Escolher (Bloqueados)")
-        st.caption("Adicione aqui temas que não devem ser feitos (ex: feitos recentemente).")
-        
         with st.container(border=True):
-            # Form para adicionar
             todos_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
             novo_bloqueio = st.selectbox("Selecione o tema para bloquear:", ["-- Selecione --"] + todos_temas)
             
@@ -376,40 +394,61 @@ def area_admin():
             st.divider()
             st.write("##### 📋 Lista de Bloqueios Ativos")
             if db['bloqueios']:
-                # Iterar sobre uma cópia da lista para não dar erro ao remover
                 for b in list(db['bloqueios']):
                     c_txt, c_btn = st.columns([4, 1])
-                    c_txt.markdown(f"<div class='block-card'>🚫 {b['tema']}</div>", unsafe_allow_html=True)
+                    dias_txt = calcular_tempo_relativo(b.get('data', str(date.today())))
+                    c_txt.markdown(f"<div class='block-card'>🚫 <b>{b['tema']}</b> <br><span style='font-size:0.8em'>Bloqueado em {b.get('data', '?')} {dias_txt}</span></div>", unsafe_allow_html=True)
                     if c_btn.button("X", key=f"rm_b_{b['tema']}"):
-                        # 1. Remove do Banco de Dados
                         remover_bloqueio_safe(b['tema'])
-                        # 2. Remove da Memória do Site (CORREÇÃO AQUI)
                         db['bloqueios'] = [x for x in db['bloqueios'] if x['tema'] != b['tema']]
-                        # 3. Recarrega a tela
                         st.rerun()
             else:
                 st.info("Nenhum tema bloqueado no momento.")
 
         st.divider()
         
-        # Seção 2: HISTÓRICO NORMAL
+        # Seção 2: HISTÓRICO NORMAL (COM INTELIGÊNCIA)
         st.subheader("📜 Histórico de Realizações")
         c_busca, c_reg = st.columns([1, 1.5], gap="large")
+        
+        # --- PESQUISA INTELIGENTE ---
         with c_busca:
             st.info("🔍 **Pesquisar Tema**")
             num_busca = st.number_input("Nº do Tema:", min_value=1, step=1)
             if num_busca:
+                # 1. Verifica se está bloqueado
+                tema_encontrado_nome = next((t['titulo'] for t in db['temas'] if t['numero'] == num_busca), "")
+                nome_completo = f"{num_busca} - {tema_encontrado_nome}"
+                
+                esta_bloqueado = any(b['tema'] == nome_completo for b in db['bloqueios'])
+                if esta_bloqueado:
+                     st.markdown(f"<div class='hist-alert hist-danger'>⛔ ATENÇÃO: TEMA BLOQUEADO!</div>", unsafe_allow_html=True)
+
+                # 2. Verifica histórico
                 encontrados = [h for h in db['historico'] if int(h['tema_numero']) == num_busca]
                 if encontrados:
                     recente = max(encontrados, key=lambda x: datetime.strptime(x['data'], "%Y-%m-%d"))
                     d_rec = datetime.strptime(recente['data'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                    st.markdown(f"<div class='hist-alert hist-warning'>⚠️ ÚLTIMA VEZ: {d_rec}<br><small>{recente['tema_titulo']}</small></div>", unsafe_allow_html=True)
-                else: st.markdown("<div class='hist-alert hist-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
+                    # Cálculo de dias
+                    tempo_txt = calcular_tempo_relativo(recente['data'])
+                    
+                    st.markdown(f"<div class='hist-alert hist-warning'>⚠️ ÚLTIMA VEZ: {d_rec}<br>{tempo_txt}<br><small>{recente['tema_titulo']}</small></div>", unsafe_allow_html=True)
+                else: 
+                    st.markdown("<div class='hist-alert hist-ok'>✅ Nunca registrado.</div>", unsafe_allow_html=True)
+        
+        # --- REGISTRO INTELIGENTE ---
         with c_reg:
             with st.container(border=True):
                 st.write("#### ➕ Registrar Realização")
                 tema_hist = st.selectbox("Tema:", [f"{t['numero']} - {t['titulo']}" for t in db['temas']])
+                
+                # VERIFICAÇÃO EM TEMPO REAL NO REGISTRO
+                if tema_hist:
+                    if any(b['tema'] == tema_hist for b in db['bloqueios']):
+                        st.error("⛔ CUIDADO: Este tema está na lista de BLOQUEADOS!")
+                
                 data_hist = st.date_input("Data:", format="DD/MM/YYYY")
+                
                 if st.button("💾 Salvar Histórico", use_container_width=True):
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
@@ -417,9 +456,11 @@ def area_admin():
                     item_h = {"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str}
                     db['historico'].append(item_h)
                     salvar_historico_safe(item_h)
-                    anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
-                    if len(anteriores) > 1: st.warning("Salvo! (Já tinha registro anterior)")
-                    else: st.success("Salvo! Primeira vez deste tema.")
+                    
+                    # Mensagem com calculo de dias
+                    tempo_txt = calcular_tempo_relativo(data_str)
+                    st.success(f"Salvo! Registro definido para {tempo_txt}.")
+
         with st.expander("Ver Tabela Completa"):
             if db['historico']:
                 df_hist = pd.DataFrame(db['historico'])
@@ -480,7 +521,7 @@ def area_admin():
                             st.rerun()
 
 # ==========================================
-# 7. RODAPÉ / LOGIN
+# 8. RODAPÉ / LOGIN
 # ==========================================
 c1, c2 = st.columns([6,1])
 with c2:

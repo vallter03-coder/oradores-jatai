@@ -156,17 +156,22 @@ st.markdown("""
 <style>
     :root { --primary: #5D9CEC; --bg: #0E1117; --sec-bg: #262730; --text: #FAFAFA; }
     .stApp { background-color: #0E1117; color: #FAFAFA; }
-    .info-box { background-color: #1C1E26; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 0.9em; }
-    .map-btn { display: inline-block; background-color: #4CAF50; color: white !important; padding: 5px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 5px; }
     div[data-testid="stVerticalBlockBorderWrapper"] { background-color: #262730; border: 1px solid #4A4A4A; border-radius: 8px; padding: 15px; }
     .stTextInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stNumberInput input { color: white !important; background-color: #262730 !important; border: 1px solid #4A4A4A !important; }
     div[data-baseweb="popover"], div[data-baseweb="menu"], div[role="listbox"] { background-color: #262730 !important; color: white !important; }
     div.stButton > button { background-color: #004E8C; color: white; border: none; border-radius: 6px; font-weight: bold; }
     h1, h2, h3, h4, p, li, label, div { color: #E0E0E0; }
+    
+    .info-box { background-color: #1C1E26; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 0.9em; }
+    .map-btn { display: inline-block; background-color: #4CAF50; color: white !important; padding: 5px 15px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 5px; }
+    
     .hist-alert { padding: 10px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
     .hist-ok { background-color: #155724; color: #d4edda; border: 1px solid #155724; }
     .hist-warning { background-color: #856404; color: #fff3cd; border: 1px solid #856404; }
     .admin-card { background-color: #323542; padding: 10px; border-left: 4px solid #5D9CEC; margin-bottom: 5px; border-radius: 4px; }
+    
+    /* Botão Link */
+    a[data-testid="stLinkButton"] { background-color: #4CAF50 !important; color: white !important; border:none !important; font-weight:bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -174,19 +179,20 @@ ICONES = {"Ancião": "🛡️", "Servo Ministerial": "💼", "Outro": "👤"}
 MAPA_MESES = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
 
 # ==========================================
-# 5. ÁREA PÚBLICA (CARDS COMPACTOS)
+# 5. ÁREA PÚBLICA
 # ==========================================
 def area_publica():
-    st.markdown(f"""
-    <div class="info-box">
-        <div style="color: #5D9CEC; font-weight: bold; font-size: 1.1em; margin-bottom: 5px;">📍 Salão do Reino</div>
-        <div>{ENDERECO_SALAO}</div>
-        <div style="margin-top: 8px;">
-            <span style="margin-right: 15px;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</span>
-            <a href="{LINK_MAPS}" target="_blank" class="map-btn">🗺️ Abrir Mapa</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container(border=True):
+        c_info_txt, c_info_btns = st.columns([1.5, 1])
+        with c_info_txt:
+            st.markdown(f"""<div style="font-size:1.1em; font-weight:bold; color:#5D9CEC;">📍 Congregação Parque Jataí</div><div style="font-size:0.9em; margin-bottom:5px;">{ENDERECO_SALAO}</div><div style="font-size:0.9em;">🕒 <b>Reunião:</b> {HORARIO_REUNIAO}</div>""", unsafe_allow_html=True)
+        with c_info_btns:
+            st.write("")
+            col_map, col_copy = st.columns(2)
+            col_map.link_button("🗺️ Abrir Mapa", LINK_MAPS, use_container_width=True)
+            convite = f"🏛️ *Salão do Reino - Cong. Parque Jataí*\n📍 {ENDERECO_SALAO}\n\n🕒 *Reunião:* {HORARIO_REUNIAO}\n🗺️ *Localização:* {LINK_MAPS}"
+            with col_copy.popover("📋 Copiar", use_container_width=True):
+                st.code(convite, language=None)
     
     st.title("Solicitação de Oradores")
 
@@ -242,24 +248,12 @@ def area_publica():
     
     for i, orador in enumerate(db['oradores']):
         with cols[i % 3]:
-            # CARD COMPACTO
             with st.container(border=True):
                 icone = ICONES.get(orador['cargo'], "👤")
-                
-                # HTML CUSTOM: Nome na esquerda, Cargo na direita
-                st.markdown(f"""
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
-                    <div style="font-weight:bold; font-size:1.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{icone} {orador['nome']}</div>
-                    <div style="font-size:0.8rem; color:#aaa; white-space:nowrap; margin-left:5px;">{orador['cargo']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # DATA (Sem traço, label escondida para compactar)
+                st.markdown(f"""<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;"><div style="font-weight:bold; font-size:1.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{icone} {orador['nome']}</div><div style="font-size:0.8rem; color:#aaa; white-space:nowrap; margin-left:5px;">{orador['cargo']}</div></div>""", unsafe_allow_html=True)
                 d_pref = st.date_input("Data", value=data_padrao, min_value=hoje, format="DD/MM/YYYY", key=f"d_{i}", label_visibility="collapsed")
-                
                 temas_ids = orador.get('temas_ids', [])
                 tema_sel = None
-                
                 if temas_ids:
                     st.markdown("<div style='margin-top:8px; font-size:0.9em; font-weight:bold;'>📖 Escolha o Tema:</div>", unsafe_allow_html=True)
                     lista_t = [t for t in db['temas'] if t['numero'] in temas_ids]
@@ -268,16 +262,10 @@ def area_publica():
                     with st.container(height=150):
                         tema_sel = st.radio("Temas", opcoes, key=f"r_{i}", label_visibility="collapsed", index=None)
                 else: st.warning("Sem temas.")
-
                 st.write("")
                 if st.button("Adicionar ao Pedido", key=f"btn_{i}", use_container_width=True):
                     if tema_sel:
-                        st.session_state['carrinho'].append({
-                            "orador": orador['nome'],
-                            "cargo": orador['cargo'],
-                            "tema": tema_sel,
-                            "data": d_pref.strftime("%Y-%m-%d")
-                        })
+                        st.session_state['carrinho'].append({"orador": orador['nome'], "cargo": orador['cargo'], "tema": tema_sel, "data": d_pref.strftime("%Y-%m-%d")})
                         st.toast(f"{orador['nome']} adicionado!", icon="✅"); st.rerun()
                     else: st.error("Escolha um tema!")
 
@@ -288,7 +276,6 @@ def area_admin():
     st.title("🔒 Painel de Controle")
     tab1, tab2, tab3 = st.tabs(["📩 Pedidos", "📜 Histórico Local", "👥 Gerenciar Oradores"])
     
-    # --- PEDIDOS ---
     with tab1:
         if not db['solicitacoes']: 
             st.info("Nenhum pedido na lista.")
@@ -307,13 +294,19 @@ def area_admin():
                     txt_zap += "----------------------------------\nAtt, Ricardo Rosa - Parque Jataí."
                     
                     st.divider()
-                    st.text_area("Copiar Mensagem:", txt_zap, height=250)
-                    if st.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary"):
+                    st.text_area("Prévia da Mensagem (pode editar):", txt_zap, height=150)
+                    
+                    # BOTÕES DE AÇÃO (LADO A LADO)
+                    c_copiar, c_excluir = st.columns(2)
+                    
+                    with c_copiar.popover("📋 Copiar Texto", use_container_width=True):
+                        st.code(txt_zap, language=None)
+                        
+                    if c_excluir.button("🗑️ Excluir Pedido", key=f"del_{solic['id']}", type="primary", use_container_width=True):
                         db['solicitacoes'] = [s for s in db['solicitacoes'] if s['id'] != solic['id']]
                         excluir_pedido_safe(solic['id'])
                         st.rerun()
 
-    # --- HISTÓRICO ---
     with tab2:
         st.subheader("📜 Histórico da Congregação")
         c_busca, c_reg = st.columns([1, 1.5], gap="large")
@@ -336,11 +329,9 @@ def area_admin():
                     num_t = int(tema_hist.split(' - ')[0])
                     tit_t = tema_hist.split(' - ')[1] if ' - ' in tema_hist else tema_hist
                     data_str = data_hist.strftime("%Y-%m-%d")
-                    
                     item_h = {"tema_numero": num_t, "tema_titulo": tit_t, "data": data_str}
                     db['historico'].append(item_h)
                     salvar_historico_safe(item_h)
-                    
                     anteriores = [h for h in db['historico'] if int(h['tema_numero']) == num_t]
                     if len(anteriores) > 1: st.warning("Salvo! (Já tinha registro anterior)")
                     else: st.success("Salvo! Primeira vez deste tema.")
@@ -352,7 +343,6 @@ def area_admin():
                 st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True)
             else: st.caption("Vazio.")
 
-    # --- ORADORES ---
     with tab3:
         st.subheader("Gerenciar Oradores")
         if db['oradores']:
@@ -360,11 +350,8 @@ def area_admin():
             df['temas_ids'] = df['temas_ids'].apply(lambda x: str(x).replace('[','').replace(']',''))
             st.dataframe(df, use_container_width=True)
         else: st.warning("Nenhum orador.")
-        
         st.divider()
-        
         opcao = st.radio("O que deseja fazer?", ["➕ Adicionar Novo Orador", "✏️ Editar/Excluir Existente"], horizontal=True)
-        
         if opcao == "➕ Adicionar Novo Orador":
             with st.container(border=True):
                 with st.form("new_or"):
@@ -379,7 +366,6 @@ def area_admin():
                         db['oradores'].append(novo_obj)
                         adicionar_orador_safe(novo_obj)
                         st.success("Salvo!"); time.sleep(1); st.rerun()
-
         elif opcao == "✏️ Editar/Excluir Existente":
             with st.container(border=True):
                 if not db['oradores']:
@@ -397,7 +383,6 @@ def area_admin():
                         all_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas']]
                         def_temas = [f"{t['numero']} - {t['titulo']}" for t in db['temas'] if t['numero'] in dados['temas_ids']]
                         e_temas = st.multiselect("Temas Habilitados:", all_temas, default=def_temas)
-                        
                         col_save, col_del = st.columns([3, 1])
                         if col_save.form_submit_button("🔄 Atualizar Dados"):
                             ids = [int(t.split(' - ')[0]) for t in e_temas]

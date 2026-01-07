@@ -3,7 +3,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from st_copy_to_clipboard import st_copy_to_clipboard
 from datetime import datetime, date
-import time
 
 # ==========================================
 # 1. CONFIGURAÇÕES E CONEXÃO
@@ -16,7 +15,6 @@ LINK_MAPS = "https://maps.app.goo.gl/36kLuQvSyK1norNm6"
 st.set_page_config(page_title="Oradores Parque Jataí", layout="wide", initial_sidebar_state="collapsed")
 
 def formatar_data_br(data_iso):
-    """Exibe no formato brasileiro DD/MM/AAAA"""
     try:
         return datetime.strptime(str(data_iso).split('T')[0], "%Y-%m-%d").strftime("%d/%m/%Y")
     except:
@@ -67,17 +65,37 @@ def acao_planilha(aba, tipo, dados=None, linha=None):
         return False
 
 # ==========================================
-# 2. CSS
+# 2. CSS PARA BOTÕES GÊMEOS (RESOLVIDO)
 # ==========================================
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; color: #FAFAFA; }
-    .stButton button, a[data-testid="stLinkButton"] { 
-        background-color: #262730 !important; border: 1px solid #444 !important;
-        color: white !important; height: 42px !important; width: 100% !important;
-        border-radius: 8px !important; font-weight: bold !important;
+    
+    /* Força botões e Iframes a terem o mesmo visual */
+    .stButton button, a[data-testid="stLinkButton"], iframe { 
+        background-color: #262730 !important; 
+        border: 1px solid #444 !important;
+        border-radius: 8px !important; 
+        height: 42px !important;
+        margin: 0 !important;
     }
-    iframe { height: 42px !important; width: 100% !important; filter: invert(0.9) brightness(1.1); border-radius: 8px; margin-top: 5px; }
+
+    /* Botão Maps */
+    .stButton button, a[data-testid="stLinkButton"] {
+        color: white !important;
+        font-weight: bold !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Botão Copiar (Limpeza do Iframe) */
+    iframe { 
+        width: 100% !important;
+        background-color: transparent !important;
+    }
+
     .item-box { border: 1px solid #333; border-radius: 10px; margin-bottom: 12px; background: #1C1E26; overflow: hidden; }
     .item-header { background: #2D313E; padding: 10px 15px; color: #5D9CEC; font-weight: bold; border-bottom: 1px solid #333; }
     .item-body { padding: 8px 15px; font-size: 0.9em; color: #BBB; }
@@ -91,22 +109,21 @@ def mural():
     with st.container(border=True):
         st.markdown(f"🏛️ **Salão do Reino - Parque Jataí**")
         st.caption(f"📍 {ENDERECO_SALAO} | 🕒 {HORARIO_REUNIAO}")
-        st.link_button("🗺️ ABRIR NO MAPS", LINK_MAPS)
-        st_copy_to_clipboard(f"🏛️ *Salão Jataí*\n📍 {ENDERECO_SALAO}\n🕒 {HORARIO_REUNIAO}\n🗺️ {LINK_MAPS}", "📋 COPIAR PARA WHATSAPP")
-    
+        
+        # Colunas com gap reduzido
+        c1, c2 = st.columns(2, gap="small") 
+        with c1:
+            st.link_button("📍 MAPS", LINK_MAPS)
+        with c2:
+            texto_copia = f"🏛️ *Salão Jataí*\n📍 {ENDERECO_SALAO}\n🕒 {HORARIO_REUNIAO}\n🗺️ {LINK_MAPS}"
+            st_copy_to_clipboard(texto_copia, "📋 COPIAR ENDEREÇO")
+
     st.write("### 🗣️ Oradores")
     for o in db.get('oradores', []):
         nome = str(o.get('nome','')).upper()
         if not nome or nome == "NONE": continue
-        
-        # Leitura limpa dos IDs separando por vírgula
         ids_raw = str(o.get('temas_ids', '')).replace('.', ',').split(',')
-        temas_desc = []
-        for tid in ids_raw:
-            tid = tid.strip()
-            if tid.isdigit():
-                temas_desc.append(f"📖 {tid} - {db['mapa_temas'].get(tid, '???')}")
-        
+        temas_desc = [f"📖 {tid.strip()} - {db['mapa_temas'].get(tid.strip(), '???')}" for tid in ids_raw if tid.strip().isdigit()]
         st.markdown(f'<div class="item-box"><div class="item-header">👤 {nome}</div><div class="item-body">{"<br>".join(temas_desc)}</div></div>', unsafe_allow_html=True)
 
 def area_admin():
@@ -120,20 +137,12 @@ def area_admin():
     with t1:
         if 'edit_idx' not in st.session_state: st.session_state['edit_idx'] = None
         ex = st.session_state['edit_idx']
-        with st.form("f_or", clear_on_submit=False):
+        with st.form("f_or"):
             n = st.text_input("Nome", value=str(db['oradores'][ex]['nome']) if ex is not None else "")
             c = st.selectbox("Cargo", ["Ancião", "Servo Ministerial"], index=0 if ex is None or db['oradores'][ex]['cargo']=="Ancião" else 1)
-            
-            def_t = []
-            if ex is not None:
-                ids_edit = str(db['oradores'][ex]['temas_ids']).replace('.', ',').split(',')
-                def_t = [f"{i.strip()} - {db['mapa_temas'].get(i.strip(), '')}" for i in ids_edit if i.strip() in db['mapa_temas']]
-            
-            sel_t = st.multiselect("Temas do Orador", options=db['lista_temas'], default=def_t)
-            
-            # SOLUÇÃO AQUI: Salva com vírgula E espaço para evitar erros na planilha
+            def_t = [f"{i.strip()} - {db['mapa_temas'].get(i.strip(), '')}" for i in str(db['oradores'][ex]['temas_ids']).replace('.',',').split(',') if i.strip() in db['mapa_temas']] if ex is not None else []
+            sel_t = st.multiselect("Temas", options=db['lista_temas'], default=def_t)
             ids_finais = ", ".join([x.split(" - ")[0] for x in sel_t])
-            
             if st.form_submit_button("Salvar Orador"):
                 if acao_planilha("oradores", "add" if ex is None else "upd", [n, c, ids_finais], linha=None if ex is None else ex+2):
                     st.session_state['edit_idx'] = None; st.rerun()
@@ -144,7 +153,6 @@ def area_admin():
             if col_e.button("📝", key=f"e{i}"): st.session_state['edit_idx'] = i; st.rerun()
             if col_d.button("🗑️", key=f"d{i}"): acao_planilha("oradores", "del", linha=i+2); st.rerun()
 
-    # (Abas Bloqueios e Histórico permanecem com a lógica estável que funcionou)
     with t2:
         with st.form("f_b"):
             sel_b = st.selectbox("Tema para Bloquear", options=db['lista_temas'])
@@ -167,13 +175,10 @@ def area_admin():
             if registros:
                 u = max(registros)
                 st.warning(f"ℹ️ Feito em {formatar_data_br(u)} (há {(date.today()-u).days} dias).")
-
         with st.form("f_h_real"):
             dt = st.date_input("Data da Reunião", value=date.today())
             if st.form_submit_button("Confirmar Realização"):
                 if sel_h: acao_planilha("historico", "add", [dt.isoformat(), sel_h.split(" - ")[0]]); st.rerun()
-
-        st.write("---")
         for i, h in enumerate(reversed(db.get('historico', []))):
             idx = len(db['historico']) - i + 1
             val = list(h.values())
